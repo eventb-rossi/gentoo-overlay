@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<bugs-to>https://github.com/hhu-stups/tlc4b/issues</bugs-to>
+		<remote-id type="github">hhu-stups/tlc4b</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		TLC4B model-checks classical B specifications by translating
+		them to TLA+ and running the TLC model checker: invariant and
+		assertion checking, deadlock detection, and counter-example
+		traces mapped back to B.
+	</longdescription>
+</pkgmetadata>
