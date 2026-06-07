@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<doc lang="en">https://www.atelierb.eu/en/documents/</doc>
+	</upstream>
+	<longdescription lang="en">
+		Atelier B Community Edition is an IDE by ClearSy for the B
+		method: type checking, proof obligation generation, automatic
+		and interactive provers, and code generation from B models.
+	</longdescription>
+</pkgmetadata>
