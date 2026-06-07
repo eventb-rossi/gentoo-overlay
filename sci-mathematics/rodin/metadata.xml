@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<doc lang="en">https://wiki.event-b.org/</doc>
+		<bugs-to>https://sourceforge.net/p/rodin-b-sharp/bugs/</bugs-to>
+		<remote-id type="sourceforge">rodin-b-sharp</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		The Rodin Platform is an Eclipse-based IDE for Event-B that
+		provides effective support for refinement and mathematical
+		proof. Event-B is a formal method for system-level modelling
+		and analysis.
+	</longdescription>
+</pkgmetadata>
