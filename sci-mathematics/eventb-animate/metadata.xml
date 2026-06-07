@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<bugs-to>https://github.com/eventb-rossi/eventb-animate/issues</bugs-to>
+		<remote-id type="github">eventb-rossi/eventb-animate</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		eventb-animate animates Event-B models with the ProB model
+		checker without requiring a Rodin Platform installation:
+		random animation, invariant checking, and trace save/replay.
+	</longdescription>
+</pkgmetadata>
