@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<bugs-to>https://github.com/eventb-rossi/eventb-checker/issues</bugs-to>
+		<remote-id type="github">eventb-rossi/eventb-checker</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		eventb-checker validates Event-B models without requiring a
+		Rodin Platform installation. It bundles the Rodin AST libraries
+		and checks machines and contexts for well-formedness errors.
+	</longdescription>
+</pkgmetadata>
