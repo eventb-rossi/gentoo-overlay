@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<bugs-to>https://codeberg.org/viklauverk/EventBTool/issues</bugs-to>
+		<remote-id type="github">viklauverk/EventBTool</remote-id>
+		<remote-id type="codeberg">viklauverk/EventBTool</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		EventBTool (evbt) works with Event-B models created in the
+		Rodin Platform: it generates documentation (TeX, HTML) and
+		translates models into executable code.
+	</longdescription>
+</pkgmetadata>
