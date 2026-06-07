@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<bugs-to>https://github.com/eventb-rossi/eventb-to-txt/issues</bugs-to>
+		<remote-id type="github">eventb-rossi/eventb-to-txt</remote-id>
+		<remote-id type="pypi">eventb-to-txt</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		eventb-to-txt converts Event-B models created in the Rodin
+		Platform (.bum and .buc files) to a plain-text CamilleX-like
+		format. Compatible with Rodin 3.0 and later models.
+	</longdescription>
+</pkgmetadata>
