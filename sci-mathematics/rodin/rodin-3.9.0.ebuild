@@ -26,9 +26,6 @@ RDEPEND="
 
 RESTRICT="strip"
 QA_PREBUILT="opt/${PN}/*"
-# The bundled JNA plugin ships libjnidispatch.so for foreign arches and
-# libcs; they are loaded from the jar at runtime, if ever.
-REQUIRES_EXCLUDE="/opt/${PN}/plugins/com.sun.jna_*"
 
 src_install() {
 	insinto /usr/share/pixmaps
@@ -41,6 +38,16 @@ src_install() {
 	# to avoid duplicating the large tree in the build directory.
 	dodir /opt
 	cd "${WORKDIR}" || die
+
+	# JNA bundles libjnidispatch for ~two dozen foreign OS/ABI combos as loose
+	# files in the exploded plugin dir. A 64-bit JVM only ever loads the host
+	# (linux-x86-64) copy; the rest are dead weight. The 32-bit linux-x86 build
+	# in particular records NEEDED=libc.so.6, which makes portage preserve
+	# glibc's libc.so.6 indefinitely (a prebuilt blob can never be relinked).
+	# Drop every native copy but the host ABI.
+	find "${S}"/plugins/com.sun.jna_*/com/sun/jna -mindepth 2 -name 'libjnidispatch.*' \
+		-not -path '*/linux-x86-64/*' -delete || die
+
 	mv "${S}" "${ED}/opt/${PN}" || die
 	mkdir "${S}" || die # later phases expect ${S} to exist
 }
