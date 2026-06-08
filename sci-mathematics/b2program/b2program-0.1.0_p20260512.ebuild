@@ -26,9 +26,9 @@ KEYWORDS="~amd64"
 # RESTRICT value, allowed via restrict-allowed in metadata/layout.conf).
 RESTRICT="bindist mirror network-sandbox"
 
-RDEPEND=">=virtual/jre-17:*"
 # The Gradle 9 wrapper does not run on newer JDKs.
-DEPEND="virtual/jdk:21"
+BDEPEND="virtual/jdk:21"
+RDEPEND=">=virtual/jre-17:*"
 
 src_compile() {
 	local -x GRADLE_USER_HOME="${T}/gradle"
