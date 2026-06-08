@@ -1,0 +1,28 @@
+name: pkgcheck
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - '.github/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - '.github/**'
+
+jobs:
+  pkgcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Official pkgcore Docker action: syncs the gentoo master tree, regenerates
+      # metadata, then runs `pkgcheck ci` over the overlay. Replaces repoman.
+      - uses: pkgcore/pkgcheck-action@v1
+        with:
+          # --net checks live SRC_URI/Homepage reachability (this overlay pulls
+          # prebuilt binaries from SourceForge/GitHub release assets, whose URLs
+          # rot). Drop --net if network checks turn flaky in CI.
+          args: --net
