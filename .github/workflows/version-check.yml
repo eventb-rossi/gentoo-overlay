@@ -1,0 +1,164 @@
+name: version-check
+
+# Daily upstream version monitor. Mirrors homebrew-tap's release tracker:
+#   * "bump" packages (clean single-distfile ${PV} ebuilds) -> open a PR with
+#     the new ebuild + regenerated Manifest.
+#   * "track" packages (opaque/complex) -> open/refresh a tracking issue.
+# Detection, classification and Manifest hashing live in
+# .github/scripts/version_check.py (no Gentoo/Portage needed: thin manifests).
+
+on:
+  schedule:
+    - cron: '27 6 * * *'   # daily, 06:27 UTC (off the hour)
+  workflow_dispatch:
+
+concurrency:
+  group: version-check
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      bump_matrix: ${{ steps.scan.outputs.bump_matrix }}
+      tracks: ${{ steps.scan.outputs.tracks }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Scan upstreams
+        id: scan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}   # lifts the GitHub API rate limit
+        run: |
+          set -euo pipefail
+          report=$(python3 .github/scripts/version_check.py check)
+          echo "$report" | jq .
+          echo "bump_matrix=$(jq -c '[.[] | select(.mode=="bump" and .outdated) | .atom]' <<<"$report")" >> "$GITHUB_OUTPUT"
+          echo "tracks=$(jq -c '[.[] | select(.mode=="track" and .outdated) | {atom, current, latest}]' <<<"$report")" >> "$GITHUB_OUTPUT"
+          # Surface detection failures (network/parse) without failing the run.
+          jq -r '.[] | select(.error != null) | "⚠️ \(.atom): \(.error)"' <<<"$report" >> "$GITHUB_STEP_SUMMARY" || true
+
+  # One PR per outdated bumpable package.
+  bump:
+    needs: detect
+    if: needs.detect.outputs.bump_matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        atom: ${{ fromJSON(needs.detect.outputs.bump_matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Bump ${{ matrix.atom }}
+        id: bump
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/version_check.py bump '${{ matrix.atom }}'
+      - name: Open pull request
+        if: steps.bump.outputs.bumped == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          # A PAT lets the bump PR trigger the pkgcheck workflow (the default
+          # github.token cannot). Set repo secret VERSION_BUMP_TOKEN (Contents +
+          # Pull requests: write) to enable that; otherwise the PR still opens.
+          token: ${{ secrets.VERSION_BUMP_TOKEN || github.token }}
+          branch: version-bump/${{ steps.bump.outputs.pn }}
+          delete-branch: true
+          title: '${{ matrix.atom }}: ${{ steps.bump.outputs.old }} → ${{ steps.bump.outputs.new }}'
+          commit-message: |
+            ${{ matrix.atom }}: add ${{ steps.bump.outputs.new }}
+
+            Automated version bump by the version-check workflow.
+
+            Signed-off-by: Denis Efremov <efremov@linux.com>
+          labels: version-bump
+          body: |
+            Automated version bump detected by the daily `version-check` workflow.
+
+            | | Version |
+            |---|---|
+            | Packaged | `${{ steps.bump.outputs.old }}` |
+            | Upstream | `${{ steps.bump.outputs.new }}` |
+
+            The new ebuild is copied verbatim from the previous version (the
+            version is taken from the filename) and the thin `Manifest` is
+            regenerated from the freshly downloaded distfile(s).
+
+            Review checklist:
+            - [ ] Build/install still works (`SRC_URI`, deps, install phases unchanged)
+            - [ ] Drop the superseded version if appropriate
+            - [ ] `pkgcheck` is green
+
+  # One tracking issue per outdated package that can't be auto-bumped.
+  track:
+    needs: detect
+    if: needs.detect.outputs.tracks != '[]'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TRACKS: ${{ needs.detect.outputs.tracks }}
+    steps:
+      - name: File / refresh tracking issues
+        run: |
+          set -euo pipefail
+          gh label create version-bump --repo "$GITHUB_REPOSITORY" \
+            --color FBCA04 --description "Upstream release detected by version-check" 2>/dev/null || true
+
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --label version-bump \
+            --state open --json number,title --limit 200)"
+
+          # Loop in the parent shell (process substitution, not a pipe) and treat
+          # every gh call as best-effort, so one package's API failure doesn't
+          # abort the batch under `set -e` and leave the rest untracked.
+          while IFS=$'\t' read -r atom current latest; do
+            pn=${atom##*/}
+            title="${pn}: ${current} → ${latest}"
+
+            if jq -e --arg t "$title" 'any(.[]; .title == $t)' <<<"$existing" >/dev/null; then
+              echo "Already tracked: $title"
+              continue
+            fi
+
+            body="$(cat <<EOF
+          A newer upstream release of **\`${atom}\`** was detected.
+
+          | | Version |
+          |---|---|
+          | Packaged | \`${current}\` |
+          | Upstream | \`${latest}\` |
+
+          This package isn't auto-bumped (opaque build id, vendored archives, or
+          detached signatures), so it needs a manual version bump:
+
+          - [ ] Add the \`${latest}\` ebuild and update \`SRC_URI\`
+          - [ ] Regenerate the \`Manifest\`
+          - [ ] \`pkgcheck scan\` is green
+
+          _Opened automatically by the daily version-check workflow._
+          EOF
+          )"
+
+            echo "Filing issue: $title"
+            if ! new_url="$(gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "$title" --label version-bump --body "$body")"; then
+              echo "::warning::failed to file tracking issue for ${atom}"
+              continue
+            fi
+            new_num="${new_url##*/}"
+
+            # Supersede older open issues for the same package (best-effort).
+            while read -r num; do
+              gh issue close "$num" --repo "$GITHUB_REPOSITORY" \
+                --comment "Superseded by #${new_num} (${title})." || true
+            done < <(jq -r --arg p "${pn}: " '.[] | select(.title | startswith($p)) | .number' <<<"$existing")
+          done < <(jq -r '.[] | [.atom, .current, .latest] | @tsv' <<<"$TRACKS")
