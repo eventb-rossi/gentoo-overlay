@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<doc lang="en">https://prob.hhu.de/w/index.php?title=Tutorial</doc>
+		<bugs-to>https://github.com/hhu-stups/prob-issues/issues</bugs-to>
+	</upstream>
+	<longdescription lang="en">
+		ProB is an animator, constraint solver and model checker for the
+		B method. It supports classical B, Event-B, CSP-M, TLA+ and Z,
+		and allows the animation and automated/guided model checking of
+		specifications, including invariant and deadlock checking. This
+		package installs the prebuilt Tcl/Tk graphical interface (prob)
+		and the command-line tool (probcli).
+	</longdescription>
+</pkgmetadata>
