@@ -45,6 +45,7 @@ REPO_ROOT = Path(os.environ.get("OVERLAY_ROOT") or Path(__file__).resolve().pare
 #   github       -> latest non-prerelease GitHub release tag (repo = owner/name)
 #   sourceforge  -> newest version directory under a SourceForge files path
 #   atelierb     -> scrape the Atelier B download page for the free version
+#   apache_index -> newest X.Y.Z subdirectory in an Apache/nginx autoindex
 PACKAGES = [
     {"atom": "sci-mathematics/eventb-checker", "mode": "bump",
      "source": {"type": "github", "repo": "eventb-rossi/eventb-checker"}},
@@ -54,6 +55,14 @@ PACKAGES = [
      "source": {"type": "github", "repo": "viklauverk/EventBTool"}},
     {"atom": "sci-mathematics/eventb-to-txt", "mode": "bump",
      "source": {"type": "github", "repo": "eventb-rossi/eventb-to-txt"}},
+    # Both detect the version from the same host the distfile lives on, so a
+    # detected version implies its release directory (and artifact) exists.
+    {"atom": "sci-mathematics/prob2-ui", "mode": "bump",
+     "source": {"type": "apache_index",
+                "url": "https://stups.hhu-hosting.de/downloads/prob2/"}},
+    {"atom": "sci-mathematics/prob-bin", "mode": "bump",
+     "source": {"type": "apache_index",
+                "url": "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/"}},
 
     {"atom": "sci-mathematics/tlc4b", "mode": "track",
      "source": {"type": "github", "repo": "hhu-stups/tlc4b"}},
@@ -191,6 +200,20 @@ def latest_atelierb(url: str) -> str:
     return max(versions, key=version_tuple)
 
 
+def latest_apache_index(url: str) -> str:
+    """Newest multi-component version subdirectory in an Apache/nginx autoindex.
+
+    Only dotted-numeric names with at least two components count: the trailing
+    `/"` anchor skips decorated siblings (betas, rcs, 'final', 'profile'), and
+    requiring a dot skips non-version dirs such as a bare year archive.
+    """
+    page = http_get(url).decode("utf-8", "replace")
+    versions = re.findall(r'href="(\d+(?:\.\d+)+)/"', page)
+    if not versions:
+        raise ValueError(f"no version directories found at {url}")
+    return max(versions, key=version_tuple)
+
+
 def latest_version(source: dict) -> str:
     t = source["type"]
     if t == "github":
@@ -199,6 +222,8 @@ def latest_version(source: dict) -> str:
         return latest_sourceforge(source["project"], source["path"])
     if t == "atelierb":
         return latest_atelierb(source["url"])
+    if t == "apache_index":
+        return latest_apache_index(source["url"])
     raise ValueError(f"unknown source type {t!r}")
 
 
