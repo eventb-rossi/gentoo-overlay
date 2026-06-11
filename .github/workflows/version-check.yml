@@ -72,7 +72,7 @@ jobs:
           # github.token cannot). Set repo secret VERSION_BUMP_TOKEN (Contents +
           # Pull requests: write) to enable that; otherwise the PR still opens.
           token: ${{ secrets.VERSION_BUMP_TOKEN || github.token }}
-          branch: version-bump/${{ steps.bump.outputs.pn }}
+          branch: version-bump/${{ steps.bump.outputs.pn }}-${{ steps.bump.outputs.new }}
           delete-branch: true
           title: '${{ matrix.atom }}: ${{ steps.bump.outputs.old }} → ${{ steps.bump.outputs.new }}'
           commit-message: |
