@@ -30,6 +30,8 @@ auto-sync = yes
 | `sci-mathematics/atelier-b` | Atelier B Community Edition — IDE for the B method |
 | `sci-mathematics/eventb-checker` | Standalone validator for Event-B models |
 | `sci-mathematics/eventb-animate` | Animate Event-B models with the ProB model checker |
+| `sci-mathematics/prob2-ui` | JavaFX-based animator and model checker built on ProB |
+| `sci-mathematics/prob-bin` | Animator, constraint solver and model checker for B, Event-B, CSP, TLA+, Z |
 | `sci-mathematics/eventb-to-txt` | Convert Rodin Event-B models to plain-text format |
 | `sci-mathematics/evbt` | Event-B tool for code generation and documentation |
 | `sci-mathematics/tlc4b` | Model-check classical B specifications via TLA+/TLC |
