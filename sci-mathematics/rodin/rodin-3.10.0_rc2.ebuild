@@ -48,6 +48,14 @@ src_install() {
 	find "${S}"/plugins/com.sun.jna_*/com/sun/jna -mindepth 2 -name 'libjnidispatch.*' \
 		-not -path '*/linux-x86-64/*' -delete || die
 
+	# Eclipse 4.x auto-detects the desktop's dark appearance and applies its
+	# dark CSS theme regardless of the product's light-mode intent, yielding a
+	# broken mixed-mode UI. Pin the light default (mirrors the upstream cask).
+	[[ -f "${S}/rodin.ini" ]] || die "rodin.ini not found at expected path"
+	printf '%s\n' \
+		"-Dorg.eclipse.e4.ui.css.swt.theme=org.eclipse.e4.ui.css.theme.e4_default" \
+		>> "${S}/rodin.ini" || die
+
 	mv "${S}" "${ED}/opt/${PN}" || die
 	mkdir "${S}" || die # later phases expect ${S} to exist
 }
