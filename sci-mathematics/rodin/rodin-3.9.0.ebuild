@@ -3,7 +3,7 @@
 
 EAPI=8
 
-inherit desktop optfeature wrapper xdg
+inherit desktop optfeature xdg
 
 # Upstream build id embedded in the tarball name; update on version bumps.
 MY_BUILD="202406100806-9b87fe13d"
@@ -30,7 +30,17 @@ QA_PREBUILT="opt/${PN}/*"
 src_install() {
 	insinto /usr/share/pixmaps
 	newins icon.xpm ${PN}.xpm
-	make_wrapper ${PN} /opt/${PN}/${PN}
+	# Force a light GTK theme for the Rodin process. The e4 CSS theme pinned
+	# in rodin.ini below only styles Eclipse-drawn widgets; native SWT/GTK
+	# widgets (trees, editor area, menus) follow the desktop GTK theme,
+	# leaving the UI partly dark on a dark desktop. GTK_THEME overrides that
+	# for this process only (mirrors the upstream launcher).
+	cat > "${T}"/${PN} <<-EOF || die
+		#!/bin/sh
+		export GTK_THEME=Adwaita:light
+		exec ${EPREFIX}/opt/${PN}/${PN} "\$@"
+	EOF
+	dobin "${T}"/${PN}
 	make_desktop_entry ${PN} "Rodin Platform" ${PN} "Development;IDE"
 
 	# Keep the vendor tree intact: the Eclipse native launcher resolves
