@@ -69,8 +69,9 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           # A PAT lets the bump PR trigger the pkgcheck workflow (the default
-          # github.token cannot). Set repo secret VERSION_BUMP_TOKEN (Contents +
-          # Pull requests: write) to enable that; otherwise the PR still opens.
+          # github.token cannot). Uses the org secret VERSION_BUMP_TOKEN (Contents +
+          # Pull requests: write), shared across the eventb-rossi packaging repos;
+          # falls back to github.token (PR still opens, just doesn't re-trigger CI).
           token: ${{ secrets.VERSION_BUMP_TOKEN || github.token }}
           branch: version-bump/${{ steps.bump.outputs.pn }}-${{ steps.bump.outputs.new }}
           delete-branch: true
