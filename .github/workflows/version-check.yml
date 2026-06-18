@@ -28,8 +28,8 @@ jobs:
       bump_matrix: ${{ steps.scan.outputs.bump_matrix }}
       tracks: ${{ steps.scan.outputs.tracks }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Scan upstreams
@@ -55,8 +55,8 @@ jobs:
       matrix:
         atom: ${{ fromJSON(needs.detect.outputs.bump_matrix) }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Bump ${{ matrix.atom }}
@@ -66,7 +66,7 @@ jobs:
         run: python3 .github/scripts/version_check.py bump '${{ matrix.atom }}'
       - name: Open pull request
         if: steps.bump.outputs.bumped == 'true'
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           # A PAT lets the bump PR trigger the pkgcheck workflow (the default
           # github.token cannot). Uses the org secret VERSION_BUMP_TOKEN (Contents +

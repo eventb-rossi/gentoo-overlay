@@ -17,7 +17,7 @@ jobs:
   pkgcheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # Official pkgcore Docker action: syncs the gentoo master tree, regenerates
       # metadata, then runs `pkgcheck ci` over the overlay. Replaces repoman.
       - uses: pkgcore/pkgcheck-action@v1
