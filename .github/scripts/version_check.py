@@ -66,6 +66,11 @@ PACKAGES = [
 
     {"atom": "sci-mathematics/tlc4b", "mode": "track",
      "source": {"type": "github", "repo": "hhu-stups/tlc4b"}},
+    # Cargo workspace: a bump must regenerate CRATES/LICENSE/Manifest with
+    # pycargoebuild, which the clean-${PV} auto-bumper cannot do, so only track
+    # and open an issue.
+    {"atom": "sci-mathematics/rossi", "mode": "track",
+     "source": {"type": "github", "repo": "eventb-rossi/rossi"}},
     {"atom": "sci-mathematics/rodin", "mode": "track",
      "source": {"type": "sourceforge", "project": "rodin-b-sharp",
                 "path": "/Core_Rodin_Platform"}},
