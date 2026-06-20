@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<bugs-to>https://github.com/eventb-rossi/rossi/issues</bugs-to>
+		<remote-id type="github">eventb-rossi/rossi</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		Rossi is a Rust toolchain for Event-B providing a parser, a static
+		checker, a command-line interface, and a language server. It validates
+		Event-B models, converts between Event-B text and Rodin archives,
+		reformats models, and powers editor integration over the Language
+		Server Protocol.
+	</longdescription>
+</pkgmetadata>
