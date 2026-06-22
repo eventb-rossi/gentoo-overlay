@@ -5,7 +5,16 @@ with [Event-B](https://www.event-b.org/) and the B method.
 
 ## Installation
 
-With `app-eselect/eselect-repository`:
+The overlay is listed in Gentoo's [official repository list][repos], so with
+`app-eselect/eselect-repository` you can enable it by name:
+
+```sh
+eselect repository enable eventb-rossi
+emaint sync -r eventb-rossi
+```
+
+If your `eselect-repository` is too old to know about the overlay, add it
+explicitly instead:
 
 ```sh
 eselect repository add eventb-rossi git https://github.com/eventb-rossi/gentoo-overlay.git
@@ -26,6 +35,7 @@ auto-sync = yes
 
 | Package | Description |
 |---|---|
+| `sci-mathematics/rossi` | Rust toolchain for Event-B: parser, static checker, CLI, and language server |
 | `sci-mathematics/rodin` | Rodin Platform — IDE for formal modelling and verification with Event-B |
 | `sci-mathematics/atelier-b` | Atelier B Community Edition — IDE for the B method |
 | `sci-mathematics/eventb-checker` | Standalone validator for Event-B models |
@@ -65,3 +75,5 @@ Community Edition license. Accept it with:
 ```sh
 echo "sci-mathematics/atelier-b Atelier-B-Community" >> /etc/portage/package.license
 ```
+
+[repos]: https://repository.gentoo.org/
