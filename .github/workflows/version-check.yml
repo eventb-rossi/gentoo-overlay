@@ -9,8 +9,12 @@ name: version-check
 
 on:
   schedule:
-    - cron: '27 6 * * *'   # daily, 06:27 UTC (off the hour)
+    - cron: '27 6 * * *'   # daily, 06:27 UTC (safety net + third-party upstreams)
   workflow_dispatch:
+  # An eventb-rossi upstream tool just released: scan now instead of waiting for
+  # tomorrow's cron (dispatched by eventb-rossi/release-automation).
+  repository_dispatch:
+    types: [upstream-release]
 
 concurrency:
   group: version-check
