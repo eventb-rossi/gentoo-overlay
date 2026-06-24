@@ -7,7 +7,7 @@ EAPI=8
 
 CRATES="
 	adler2@2.0.1
-	aes@0.9.0
+	aes@0.9.1
 	aho-corasick@1.1.4
 	anstream@1.0.0
 	anstyle-parse@1.0.0
