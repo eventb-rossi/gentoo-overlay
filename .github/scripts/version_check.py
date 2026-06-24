@@ -175,6 +175,19 @@ def highest_current(atom: str) -> str | None:
     return max(vs, key=version_tuple) if vs else None
 
 
+def highest_current_stable(atom: str) -> str | None:
+    """Highest packaged version, ignoring pre-release ebuilds (_rc/_alpha/...).
+
+    version_tuple strips suffixes, so highest_current() would rank a masked
+    `_rc` ebuild equal to its stable form and could return the rc — which a
+    cargo bump must never treat as `current` (it would compare/delete the
+    wrong, package.mask-protected ebuild). CLAUDE.md allows a masked `_rc` to
+    coexist with the stable version, so the auto-bumper targets the stable line.
+    """
+    vs = [v for v in current_versions(atom) if not PRERELEASE_RE.search(v)]
+    return max(vs, key=version_tuple) if vs else None
+
+
 # --- latest (upstream) version --------------------------------------------
 PRERELEASE_RE = re.compile(r"(?:^|[-_.])(?:rc|alpha|beta|pre|dev|snapshot)", re.IGNORECASE)
 
@@ -286,37 +299,40 @@ def parse_distfiles(ebuild_text: str, pn: str, pv: str) -> list[tuple[str, str]]
     return files
 
 
+def _dist_line(name: str, chunks) -> str:
+    """Thin-Manifest DIST line from an iterable of byte chunks.
+
+    Distfiles here run to ~100 MB (e.g. eventb-animate), so hash incrementally
+    instead of buffering the whole artifact in memory. The format is the single
+    source of truth for both the URL and local-file producers below.
+    """
+    b2, sha, size = hashlib.blake2b(), hashlib.sha512(), 0
+    for chunk in chunks:
+        b2.update(chunk)
+        sha.update(chunk)
+        size += len(chunk)
+    return f"DIST {name} {size} BLAKE2B {b2.hexdigest()} SHA512 {sha.hexdigest()}"
+
+
 def manifest_line(dest: str, url: str, timeout: int = 120) -> str:
     """Stream `url` and return its thin-Manifest DIST line.
 
-    Distfiles here run to ~100 MB (e.g. eventb-animate), so hash incrementally
-    in fixed-size chunks instead of buffering the whole artifact in memory.
     No auth header: release-asset downloads redirect to a CDN that rejects a
     forwarded Authorization.
     """
-    b2, sha, size = hashlib.blake2b(), hashlib.sha512(), 0
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        for chunk in iter(lambda: resp.read(1 << 20), b""):
-            b2.update(chunk)
-            sha.update(chunk)
-            size += len(chunk)
-    return f"DIST {dest} {size} BLAKE2B {b2.hexdigest()} SHA512 {sha.hexdigest()}"
+        return _dist_line(dest, iter(lambda: resp.read(1 << 20), b""))
 
 
 def manifest_line_file(path: Path) -> str:
     """Thin-Manifest DIST line for a local file (named by its basename).
 
-    Sibling of `manifest_line` for files already on disk (the crate distfiles
-    pycargoebuild downloaded, and the app tarball). Same chunked hashing.
+    For files already on disk: the crate distfiles pycargoebuild downloaded and
+    the app tarball.
     """
-    b2, sha, size = hashlib.blake2b(), hashlib.sha512(), 0
     with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            b2.update(chunk)
-            sha.update(chunk)
-            size += len(chunk)
-    return f"DIST {path.name} {size} BLAKE2B {b2.hexdigest()} SHA512 {sha.hexdigest()}"
+        return _dist_line(path.name, iter(lambda: fh.read(1 << 20), b""))
 
 
 # --- subcommands -----------------------------------------------------------
@@ -324,7 +340,10 @@ def cmd_check() -> int:
     report = []
     for pkg in PACKAGES:
         atom, mode = pkg["atom"], pkg["mode"]
-        current = highest_current(atom)
+        # cargo bumps target the stable line and ignore a coexisting masked _rc;
+        # detect must compare against the same `current` cmd_bump_cargo will use,
+        # or an upstream release equal to the rc (0.2.0 vs 0.2.0_rc1) is missed.
+        current = highest_current_stable(atom) if mode == "cargo" else highest_current(atom)
         entry = {"atom": atom, "mode": mode, "current": current,
                  "latest": None, "outdated": False, "error": None}
         if mode != "skip":
@@ -395,13 +414,22 @@ def cmd_bump(atom: str) -> int:
 
 # --- cargo bump ------------------------------------------------------------
 # Regions of a pycargoebuild-generated ebuild that change between versions. A
-# cargo bump = the previous ebuild with exactly these three swapped; everything
-# else (SRC_URI is ${PV}-templated, plus the maintainer's SLOT/KEYWORDS/IUSE/
+# cargo bump = the previous ebuild with exactly these swapped; everything else
+# (SRC_URI is ${PV}-templated, plus the maintainer's SLOT/KEYWORDS/IUSE/
 # RESTRICT/CARGO_SKIP_TESTS/DOCS/src_install) carries over verbatim.
+COPYRIGHT_RE = re.compile(r"^# Copyright \d{4} Gentoo Authors$", re.MULTILINE)
 CRATES_BLOCK_RE = re.compile(r'^CRATES="\n.*?\n"\n', re.MULTILINE | re.DOTALL)
-LICENSE_REGION_RE = re.compile(r"^LICENSE=.*?(?=^SLOT=)", re.MULTILINE | re.DOTALL)
+# Match only the LICENSE statements themselves — the `LICENSE="..."` line plus
+# any following comment / `LICENSE+="..."` lines — NOT everything up to SLOT, so
+# a maintainer assignment between LICENSE and SLOT is never swallowed.
+LICENSE_REGION_RE = re.compile(
+    r'^LICENSE="[^"]*"(?:\n#[^\n]*|\nLICENSE\+="[^"]*")*\n', re.MULTILINE)
 PYCARGO_COMMENT_RE = re.compile(r"^# Autogenerated by pycargoebuild \S+.*$", re.MULTILINE)
+# pycargoebuild emits `declare -A GIT_CRATES=(...)` when a dep is git-sourced.
+GIT_CRATES_RE = re.compile(r"^(?:declare -A )?GIT_CRATES=", re.MULTILINE)
 SKIP_TESTS_RE = re.compile(r"CARGO_SKIP_TESTS=\((.*?)\)", re.DOTALL)
+# dobin "$(cargo_target_dir)"/{a,b} or .../bin — the binaries src_install ships.
+DOBIN_RE = re.compile(r"dobin\b([^\n]*)")
 
 
 def app_tarball(ebuild_text: str, pn: str, pv: str) -> tuple[str, str]:
@@ -418,11 +446,38 @@ def app_tarball(ebuild_text: str, pn: str, pv: str) -> tuple[str, str]:
     body = m.group("body")
     for var, val in {"P": f"{pn}-{pv}", "PN": pn, "PV": pv}.items():
         body = body.replace("${%s}" % var, val)
+    # The only token allowed to stay unresolved is the eclass-expanded
+    # ${CARGO_CRATE_URIS}; reject USE-conditionals / other unresolved vars so we
+    # never pick the wrong artifact (mirrors parse_distfiles' strictness).
+    leftover = body.replace("${CARGO_CRATE_URIS}", "")
+    if "$" in leftover or "(" in leftover or "?" in leftover:
+        raise ValueError(f"unsupported cargo SRC_URI construct: {body!r}")
     tokens = body.split()
     for i in range(len(tokens) - 2):
         if tokens[i + 1] == "->" and "$" not in tokens[i]:
             return tokens[i], tokens[i + 2]
     raise ValueError("no resolvable '<url> -> <dest>' app tarball in SRC_URI")
+
+
+def installed_bins(ebuild_text: str) -> list[str]:
+    """Binary basenames the ebuild's dobin lines install.
+
+    Used to verify, after a build, that every binary src_install ships still
+    exists — a renamed upstream binary passes `cargo build`/`test` but would die
+    in Portage's src_install. Handles the brace-list form
+    `dobin .../{a,b}` and plain space-separated paths; returns [] if it can't
+    parse (the caller then skips the check rather than failing the bump).
+    """
+    bins: list[str] = []
+    for args in DOBIN_RE.findall(ebuild_text):
+        for tok in args.split():
+            tok = tok.strip('"').rsplit("/", 1)[-1]  # drop dir + quotes
+            m = re.fullmatch(r"\{([\w.-]+(?:,[\w.-]+)*)\}", tok)
+            if m:
+                bins.extend(m.group(1).split(","))
+            elif re.fullmatch(r"[\w.-]+", tok):
+                bins.append(tok)
+    return bins
 
 
 def download_to(url: str, dest: Path, timeout: int = 180) -> None:
@@ -436,7 +491,8 @@ def splice_cargo_blocks(old_text: str, gen_text: str) -> str:
     """Swap CRATES, the LICENSE region, and the pycargoebuild comment in `old_text`
     with the freshly generated ones from `gen_text`."""
     out = old_text
-    for regex, what in ((PYCARGO_COMMENT_RE, "pycargoebuild comment"),
+    for regex, what in ((COPYRIGHT_RE, "copyright line"),
+                        (PYCARGO_COMMENT_RE, "pycargoebuild comment"),
                         (CRATES_BLOCK_RE, "CRATES block"),
                         (LICENSE_REGION_RE, "LICENSE region")):
         gen = regex.search(gen_text)
@@ -460,7 +516,7 @@ def cmd_bump_cargo(atom: str) -> int:
         return 2
 
     pn = atom.split("/", 1)[1]
-    current = highest_current(atom)
+    current = highest_current_stable(atom)
     latest = latest_version(pkg["source"])
     if not (current and latest and version_newer(latest, current)):
         print(f"{atom}: up to date ({current}, upstream {latest})")
@@ -484,7 +540,10 @@ def cmd_bump_cargo(atom: str) -> int:
     print(f"  fetching {url}")
     download_to(url, tarball)
     with tarfile.open(tarball) as tf:
-        top = tf.getnames()[0].split("/", 1)[0]
+        names = tf.getnames()
+        if not names:
+            raise ValueError(f"empty/corrupt source tarball: {url}")
+        top = names[0].split("/", 1)[0]
         tf.extractall(work, filter="data")
     srcdir = work / top
 
@@ -496,7 +555,16 @@ def cmd_bump_cargo(atom: str) -> int:
         check=True,
     )
 
-    new_text = splice_cargo_blocks(old_text, gen.read_text())
+    gen_text = gen.read_text()
+    # A git-sourced dependency makes pycargoebuild emit a GIT_CRATES block (and
+    # fetch <repo>-<commit>.gh.tar.gz distfiles). The splice only swaps
+    # CRATES/LICENSE, so it can't carry GIT_CRATES into the ebuild — abort and
+    # let the workflow fall back to a tracking issue for a human to handle.
+    if GIT_CRATES_RE.search(gen_text):
+        raise ValueError("pycargoebuild emitted GIT_CRATES (git dependency) — "
+                         "cargo auto-bump can't handle git crates; bump by hand")
+
+    new_text = splice_cargo_blocks(old_text, gen_text)
     # Guard against a structural surprise (pycargoebuild output shape change, a
     # crate-tarball SRC_URI, etc.): the maintainer's customizations must survive.
     for marker in ("inherit cargo", "CARGO_SKIP_TESTS", "src_install"):
@@ -509,11 +577,13 @@ def cmd_bump_cargo(atom: str) -> int:
         src_ebuild.unlink()  # one version per package
         print(f"  dropped {src_ebuild.relative_to(REPO_ROOT)}")
 
-    # Rebuild the thin Manifest from scratch: the app tarball plus every crate
-    # pycargoebuild downloaded, sorted by filename like Portage.
+    # Rebuild the thin Manifest from scratch: the app tarball plus every distfile
+    # pycargoebuild downloaded into --distdir (every regular file — .crate and,
+    # in principle, git .gh.tar.gz), sorted by filename like Portage.
     lines = {tarball.name: manifest_line_file(tarball)}
-    for crate in cratesdir.glob("*.crate"):
-        lines[crate.name] = manifest_line_file(crate)
+    for f in cratesdir.iterdir():
+        if f.is_file():
+            lines[f.name] = manifest_line_file(f)
     manifest = pdir / "Manifest"
     manifest.write_text("".join(f"{lines[k]}\n" for k in sorted(lines)))
     print(f"  wrote {manifest.relative_to(REPO_ROOT)} ({len(lines)} DIST entries)")
@@ -521,7 +591,8 @@ def cmd_bump_cargo(atom: str) -> int:
     skips = SKIP_TESTS_RE.search(new_text)
     emit_outputs(bumped="true", pn=pn, old=current, new=latest,
                  srcdir=str(srcdir),
-                 skip_tests=" ".join(skips.group(1).split()) if skips else "")
+                 skip_tests=" ".join(skips.group(1).split()) if skips else "",
+                 bins=" ".join(installed_bins(new_text)))
     return 0
 
 

@@ -140,16 +140,27 @@ jobs:
         working-directory: ${{ steps.bump.outputs.srcdir }}
         env:
           SKIP_TESTS: ${{ steps.bump.outputs.skip_tests }}
+          BINS: ${{ steps.bump.outputs.bins }}
         run: |
           set -euo pipefail
+          cargo build --release --locked
+          # The ebuild's src_install dobin's these by name; a renamed upstream
+          # binary builds fine but would die in Portage's install phase. Fail
+          # here so the PR is never opened claiming a broken install works.
+          for b in $BINS; do
+            test -x "target/release/$b" || {
+              echo "::error::ebuild installs '$b' but target/release/$b is missing (renamed upstream binary?)"
+              exit 1
+            }
+          done
           # The GitHub archive tarball omits git submodules (the editor
           # tree-sitter grammar), so the ebuild's CARGO_SKIP_TESTS guard tests
           # that read it; skip the same names here.
           args=()
           for t in $SKIP_TESTS; do args+=(--skip "$t"); done
-          cargo build --release --locked
           cargo test --release --locked -- "${args[@]}"
       - name: Open pull request
+        id: pr
         if: steps.bump.outputs.bumped == 'true' && steps.verify.outcome == 'success'
         uses: peter-evans/create-pull-request@v8
         with:
@@ -185,7 +196,7 @@ jobs:
             - [ ] `src_install`/deps still appropriate for the new release
             - [ ] `pkgcheck` is green
       - name: Fall back to a tracking issue
-        if: failure() && (steps.bump.outcome == 'failure' || steps.verify.outcome == 'failure')
+        if: failure() && (steps.bump.outcome == 'failure' || steps.verify.outcome == 'failure' || steps.pr.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           ATOM: ${{ matrix.pkg.atom }}
@@ -197,8 +208,9 @@ jobs:
             --color FBCA04 --description "Upstream release detected by version-check" 2>/dev/null || true
           pn=${ATOM##*/}
           title="${pn}: ${CURRENT} → ${LATEST}"
-          if gh issue list --repo "$GITHUB_REPOSITORY" --label version-bump --state open \
-               --json title --limit 200 | jq -e --arg t "$title" 'any(.[]; .title == $t)' >/dev/null; then
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label version-bump \
+            --state open --json number,title --limit 200)
+          if jq -e --arg t "$title" 'any(.[]; .title == $t)' <<<"$existing" >/dev/null; then
             echo "Already tracked: $title"
             exit 0
           fi
@@ -213,7 +225,15 @@ jobs:
             "Failed run: ${run_url}" \
             "" \
             "_Opened automatically by the version-check workflow after an auto-bump failure._")
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label version-bump --body "$body"
+          new_url=$(gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "$title" --label version-bump --body "$body")
+          new_num="${new_url##*/}"
+          # Supersede older open issues for the same package (best-effort), as
+          # the track job does — otherwise stale version targets accumulate.
+          while read -r num; do
+            gh issue close "$num" --repo "$GITHUB_REPOSITORY" \
+              --comment "Superseded by #${new_num} (${title})." || true
+          done < <(jq -r --arg p "${pn}: " '.[] | select(.title | startswith($p)) | .number' <<<"$existing")
 
   # One tracking issue per outdated package that can't be auto-bumped.
   track:
