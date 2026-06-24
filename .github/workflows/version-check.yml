@@ -3,6 +3,9 @@ name: version-check
 # Daily upstream version monitor. Mirrors homebrew-tap's release tracker:
 #   * "bump" packages (clean single-distfile ${PV} ebuilds) -> open a PR with
 #     the new ebuild + regenerated Manifest.
+#   * "cargo" packages (cargo-eclass ebuilds) -> regenerate CRATES/LICENSE with
+#     pycargoebuild, rebuild the Manifest, build+test, then open a PR. On any
+#     failure, fall back to a tracking issue.
 #   * "track" packages (opaque/complex) -> open/refresh a tracking issue.
 # Detection, classification and Manifest hashing live in
 # .github/scripts/version_check.py (no Gentoo/Portage needed: thin manifests).
@@ -30,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       bump_matrix: ${{ steps.scan.outputs.bump_matrix }}
+      cargo_matrix: ${{ steps.scan.outputs.cargo_matrix }}
       tracks: ${{ steps.scan.outputs.tracks }}
     steps:
       - uses: actions/checkout@v7
@@ -45,6 +49,7 @@ jobs:
           report=$(python3 .github/scripts/version_check.py check)
           echo "$report" | jq .
           echo "bump_matrix=$(jq -c '[.[] | select(.mode=="bump" and .outdated) | .atom]' <<<"$report")" >> "$GITHUB_OUTPUT"
+          echo "cargo_matrix=$(jq -c '[.[] | select(.mode=="cargo" and .outdated) | {atom, current, latest}]' <<<"$report")" >> "$GITHUB_OUTPUT"
           echo "tracks=$(jq -c '[.[] | select(.mode=="track" and .outdated) | {atom, current, latest}]' <<<"$report")" >> "$GITHUB_OUTPUT"
           # Surface detection failures (network/parse) without failing the run.
           jq -r '.[] | select(.error != null) | "⚠️ \(.atom): \(.error)"' <<<"$report" >> "$GITHUB_STEP_SUMMARY" || true
@@ -103,6 +108,112 @@ jobs:
             - [ ] Build/install still works (`SRC_URI`, deps, install phases unchanged)
             - [ ] Drop the superseded version if appropriate
             - [ ] `pkgcheck` is green
+
+  # One PR per outdated cargo package: pycargoebuild regenerates CRATES/LICENSE
+  # and the Manifest, the result is built + tested, then a PR is opened. Any
+  # failure (regen, build, or tests) falls back to a tracking issue, so a
+  # release is never silently dropped.
+  bump-cargo:
+    needs: detect
+    if: needs.detect.outputs.cargo_matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: ${{ fromJSON(needs.detect.outputs.cargo_matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install pycargoebuild
+        run: pip install pycargoebuild
+      - name: Bump ${{ matrix.pkg.atom }}
+        id: bump
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/version_check.py bump-cargo '${{ matrix.pkg.atom }}'
+      - name: Build & test the regenerated package
+        if: steps.bump.outputs.bumped == 'true'
+        id: verify
+        working-directory: ${{ steps.bump.outputs.srcdir }}
+        env:
+          SKIP_TESTS: ${{ steps.bump.outputs.skip_tests }}
+        run: |
+          set -euo pipefail
+          # The GitHub archive tarball omits git submodules (the editor
+          # tree-sitter grammar), so the ebuild's CARGO_SKIP_TESTS guard tests
+          # that read it; skip the same names here.
+          args=()
+          for t in $SKIP_TESTS; do args+=(--skip "$t"); done
+          cargo build --release --locked
+          cargo test --release --locked -- "${args[@]}"
+      - name: Open pull request
+        if: steps.bump.outputs.bumped == 'true' && steps.verify.outcome == 'success'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          # See the bump job: a PAT lets the PR re-trigger pkgcheck.
+          token: ${{ secrets.VERSION_BUMP_TOKEN || github.token }}
+          branch: version-bump/${{ steps.bump.outputs.pn }}-${{ steps.bump.outputs.new }}
+          delete-branch: true
+          title: '${{ matrix.pkg.atom }}: ${{ steps.bump.outputs.old }} → ${{ steps.bump.outputs.new }}'
+          commit-message: |
+            ${{ matrix.pkg.atom }}: add ${{ steps.bump.outputs.new }}, drop ${{ steps.bump.outputs.old }}
+
+            Regenerated CRATES/LICENSE with pycargoebuild and rebuilt the Manifest.
+            Automated version bump by the version-check workflow.
+
+            Signed-off-by: Denis Efremov <efremov@linux.com>
+          labels: version-bump
+          body: |
+            Automated cargo version bump detected by the daily `version-check` workflow.
+
+            | | Version |
+            |---|---|
+            | Packaged | `${{ steps.bump.outputs.old }}` |
+            | Upstream | `${{ steps.bump.outputs.new }}` |
+
+            `pycargoebuild` regenerated the `CRATES`/`LICENSE` blocks from the new
+            `Cargo.lock`, the thin `Manifest` was rebuilt from the app tarball and
+            every crate distfile, and the previous version was dropped. The result
+            was **built and tested** in CI (`cargo build --release --locked` +
+            `cargo test` with the ebuild's `CARGO_SKIP_TESTS`).
+
+            Review checklist:
+            - [ ] Diff is only `CRATES`/`LICENSE`/the pycargoebuild comment
+            - [ ] `src_install`/deps still appropriate for the new release
+            - [ ] `pkgcheck` is green
+      - name: Fall back to a tracking issue
+        if: failure() && (steps.bump.outcome == 'failure' || steps.verify.outcome == 'failure')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ATOM: ${{ matrix.pkg.atom }}
+          CURRENT: ${{ matrix.pkg.current }}
+          LATEST: ${{ matrix.pkg.latest }}
+        run: |
+          set -euo pipefail
+          gh label create version-bump --repo "$GITHUB_REPOSITORY" \
+            --color FBCA04 --description "Upstream release detected by version-check" 2>/dev/null || true
+          pn=${ATOM##*/}
+          title="${pn}: ${CURRENT} → ${LATEST}"
+          if gh issue list --repo "$GITHUB_REPOSITORY" --label version-bump --state open \
+               --json title --limit 200 | jq -e --arg t "$title" 'any(.[]; .title == $t)' >/dev/null; then
+            echo "Already tracked: $title"
+            exit 0
+          fi
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body=$(printf '%s\n' \
+            "The automated cargo bump for \`${ATOM}\` (\`${CURRENT}\` → \`${LATEST}\`) failed in CI, so it needs a manual version bump:" \
+            "" \
+            "- [ ] Regenerate the ebuild (\`pycargoebuild\`) and the \`Manifest\`" \
+            "- [ ] Build + test the new version" \
+            "- [ ] \`pkgcheck scan\` is green" \
+            "" \
+            "Failed run: ${run_url}" \
+            "" \
+            "_Opened automatically by the version-check workflow after an auto-bump failure._")
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label version-bump --body "$body"
 
   # One tracking issue per outdated package that can't be auto-bumped.
   track:
