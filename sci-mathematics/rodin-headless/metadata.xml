@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<bugs-to>https://github.com/eventb-rossi/rodin-headless/issues</bugs-to>
+		<remote-id type="github">eventb-rossi/rodin-headless</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		rodin-headless drives the Rodin Platform from the command line to build,
+		model-check, and prove Event-B models without a graphical session. It
+		takes .zip archives of Event-B projects, runs a full Rodin workspace
+		build headlessly, and writes the static-checked artifacts back into the
+		archives. Beyond plain builds it can model-check and validate models with
+		ProB and discharge proof obligations with the Rodin auto-provers. The
+		Rodin and ProB runtimes are downloaded on first use by the bundled
+		rodin-headless-install command rather than shipped with this package.
+	</longdescription>
+</pkgmetadata>

@@ -70,6 +70,8 @@ PACKAGES = [
      "source": {"type": "github", "repo": "viklauverk/EventBTool"}},
     {"atom": "sci-mathematics/eventb-to-txt", "mode": "bump",
      "source": {"type": "github", "repo": "eventb-rossi/eventb-to-txt"}},
+    {"atom": "sci-mathematics/rodin-headless", "mode": "bump",
+     "source": {"type": "github", "repo": "eventb-rossi/rodin-headless"}},
     # Both detect the version from the same host the distfile lives on, so a
     # detected version implies its release directory (and artifact) exists.
     {"atom": "sci-mathematics/prob2-ui", "mode": "bump",

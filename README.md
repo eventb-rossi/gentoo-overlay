@@ -37,6 +37,7 @@ auto-sync = yes
 |---|---|
 | `sci-mathematics/rossi` | Rust toolchain for Event-B: parser, static checker, CLI, and language server |
 | `sci-mathematics/rodin` | Rodin Platform — IDE for formal modelling and verification with Event-B |
+| `sci-mathematics/rodin-headless` | Headless toolchain to build, model-check, and prove Rodin Event-B models |
 | `sci-mathematics/atelier-b` | Atelier B Community Edition — IDE for the B method |
 | `sci-mathematics/eventb-checker` | Standalone validator for Event-B models |
 | `sci-mathematics/eventb-animate` | Animate Event-B models with the ProB model checker |
