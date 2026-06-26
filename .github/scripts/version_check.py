@@ -551,9 +551,15 @@ def cmd_bump_cargo(atom: str) -> int:
 
     gen = work / "gen.ebuild"
     print(f"  running pycargoebuild in {member}")
+    # pycargoebuild maps crate SPDX licenses -> Gentoo LICENSE via Gentoo's
+    # metadata/license-mapping.conf. Without --license-mapping it imports
+    # `portage` to locate it, which the CI runner lacks; point it at our
+    # vendored copy (and --no-config for determinism) so Portage is never needed.
     subprocess.run(
-        [sys.executable, "-m", "pycargoebuild",
-         "--distdir", str(cratesdir), "-o", str(gen), str(srcdir / member)],
+        [sys.executable, "-m", "pycargoebuild", "--no-config",
+         "--distdir", str(cratesdir),
+         "--license-mapping", str(REPO_ROOT / ".github" / "license-mapping.conf"),
+         "-o", str(gen), str(srcdir / member)],
         check=True,
     )
 
