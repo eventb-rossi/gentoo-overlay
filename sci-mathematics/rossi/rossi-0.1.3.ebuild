@@ -14,7 +14,7 @@ CRATES="
 	anstyle-query@1.1.5
 	anstyle-wincon@3.0.11
 	anstyle@1.0.14
-	anyhow@1.0.102
+	anyhow@1.0.103
 	ar_archive_writer@0.5.2
 	async-trait@0.1.89
 	auto_impl@1.3.0
@@ -33,6 +33,7 @@ CRATES="
 	cipher@0.5.1
 	clap@4.6.1
 	clap_builder@4.6.0
+	clap_complete@4.6.5
 	clap_derive@4.6.1
 	clap_lex@1.1.0
 	cmov@0.5.3
