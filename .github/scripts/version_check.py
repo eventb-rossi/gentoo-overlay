@@ -342,10 +342,14 @@ def cmd_check() -> int:
     report = []
     for pkg in PACKAGES:
         atom, mode = pkg["atom"], pkg["mode"]
-        # cargo bumps target the stable line and ignore a coexisting masked _rc;
-        # detect must compare against the same `current` cmd_bump_cargo will use,
-        # or an upstream release equal to the rc (0.2.0 vs 0.2.0_rc1) is missed.
-        current = highest_current_stable(atom) if mode == "cargo" else highest_current(atom)
+        # Compare against the stable line, ignoring a coexisting masked _rc.
+        # version_tuple strips suffixes, so highest_current() ranks a masked
+        # `_rc` equal to its stable form: a final release equal to the packaged
+        # rc (3.10.0 vs 3.10.0_rc2, 0.2.0 vs 0.2.0_rc1) would then compare
+        # not-newer and be missed. cargo bumps already relied on this; all modes
+        # need it. Fall back to highest_current() only when no stable ebuild
+        # exists (an rc-only package, where the rc is the only baseline).
+        current = highest_current_stable(atom) or highest_current(atom)
         entry = {"atom": atom, "mode": mode, "current": current,
                  "latest": None, "outdated": False, "error": None}
         if mode != "skip":
