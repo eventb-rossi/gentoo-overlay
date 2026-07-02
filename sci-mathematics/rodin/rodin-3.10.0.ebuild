@@ -6,8 +6,8 @@ EAPI=8
 inherit desktop optfeature xdg
 
 # Upstream build id embedded in the tarball name; update on version bumps.
-MY_BUILD="202605210654-RC2-881664d81"
-MY_SF_DIR="$(ver_cut 1-2)-RC$(ver_cut 5)"
+MY_BUILD="202607010932-881664d81"
+MY_SF_DIR="$(ver_cut 1-2)"
 
 DESCRIPTION="IDE for formal modelling and verification with Event-B"
 HOMEPAGE="https://www.event-b.org/"

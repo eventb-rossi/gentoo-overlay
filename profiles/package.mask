@@ -1,4 +1,0 @@
-# Denis Efremov <efremov@linux.com> (2026-06-07)
-# Rodin Platform release candidates, masked for testing only.
-# Unmask in /etc/portage/package.unmask to try them out.
-~sci-mathematics/rodin-3.10.0_rc2
