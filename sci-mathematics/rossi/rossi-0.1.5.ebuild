@@ -124,9 +124,9 @@ CRATES="
 	pbkdf2@0.13.0
 	percent-encoding@2.3.2
 	pest@2.8.7
-	pest_derive@2.8.6
-	pest_generator@2.8.6
-	pest_meta@2.8.6
+	pest_derive@2.8.7
+	pest_generator@2.8.7
+	pest_meta@2.8.7
 	pin-project-internal@1.1.13
 	pin-project-lite@0.2.17
 	pin-project@1.1.13
@@ -174,6 +174,7 @@ CRATES="
 	socket2@0.6.3
 	stable_deref_trait@1.2.1
 	stacker@0.1.24
+	stats_alloc@0.1.10
 	str_indices@0.4.4
 	strsim@0.11.1
 	syn@2.0.117
