@@ -43,6 +43,7 @@ auto-sync = yes
 | `sci-mathematics/eventb-animate` | Animate Event-B models with the ProB model checker |
 | `sci-mathematics/prob2-ui` | JavaFX-based animator and model checker built on ProB |
 | `sci-mathematics/prob-bin` | Animator, constraint solver and model checker for B, Event-B, CSP, TLA+, Z |
+| `sci-mathematics/ltsmin` | Language-independent model-checking tools, including ProB state-space exploration |
 | `sci-mathematics/eventb-to-txt` | Convert Rodin Event-B models to plain-text format |
 | `sci-mathematics/evbt` | Event-B tool for code generation and documentation |
 | `sci-mathematics/tlc4b` | Model-check classical B specifications via TLA+/TLC |
@@ -50,6 +51,28 @@ auto-sync = yes
 | `sec-keys/openpgp-keys-stups` | OpenPGP key used to verify the tlc4b Maven artifacts |
 
 ## Notes
+
+### ProB and LTSmin integration
+
+Enable `ltsmin` on ProB to make the LTSmin exploration tools available through
+the ProB installation:
+
+```sh
+echo "sci-mathematics/prob-bin ltsmin" >> /etc/portage/package.use
+```
+
+`eventb-animate` can use LTSmin with either its bundled ProB kernel or the
+system package. ProB2-UI requires the system kernel when LTSmin is enabled:
+
+```sh
+echo "sci-mathematics/eventb-animate ltsmin" >> /etc/portage/package.use
+echo "sci-mathematics/eventb-animate system-prob" >> /etc/portage/package.use
+echo "sci-mathematics/prob2-ui system-prob ltsmin" >> /etc/portage/package.use
+```
+
+The second `eventb-animate` line is optional; omit it to retain the bundled
+kernel. LTSmin is built without LTO because version 3.0.2 contains incompatible
+cross-translation-unit declarations that GCC's link-time optimizer rejects.
 
 ### Rodin release candidates
 
