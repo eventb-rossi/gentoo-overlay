@@ -83,6 +83,8 @@ PACKAGES = [
 
     {"atom": "sci-mathematics/tlc4b", "mode": "track",
      "source": {"type": "github", "repo": "hhu-stups/tlc4b"}},
+    {"atom": "sci-mathematics/ltsmin", "mode": "track",
+     "source": {"type": "github", "repo": "utwente-fmt/ltsmin"}},
     # Cargo workspace: the bump regenerates CRATES/LICENSE/Manifest with
     # pycargoebuild (cmd_bump_cargo). cargo_member is the workspace member to run
     # pycargoebuild in — it refuses at a virtual workspace root, and any member
