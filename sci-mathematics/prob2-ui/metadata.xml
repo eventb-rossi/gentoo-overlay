@@ -5,6 +5,10 @@
 		<email>efremov@linux.com</email>
 		<name>Denis Efremov</name>
 	</maintainer>
+	<use>
+		<flag name="ltsmin">Enable LTSmin model checking through the system ProB kernel</flag>
+		<flag name="system-prob">Use <pkg>sci-mathematics/prob-bin</pkg> instead of the bundled ProB kernel</flag>
+	</use>
 	<upstream>
 		<bugs-to>https://github.com/hhu-stups/prob-issues/issues</bugs-to>
 		<remote-id type="github">hhu-stups/prob2_ui</remote-id>

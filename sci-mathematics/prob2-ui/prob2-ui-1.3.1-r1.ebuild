@@ -16,8 +16,14 @@ S="${WORKDIR}"
 LICENSE="EPL-2.0"
 SLOT="0"
 KEYWORDS="~amd64"
+IUSE="ltsmin system-prob"
 
-RDEPEND=">=virtual/jre-21:*"
+REQUIRED_USE="ltsmin? ( system-prob )"
+
+RDEPEND="
+	>=virtual/jre-21:*
+	system-prob? ( ~sci-mathematics/prob-bin-1.15.1[ltsmin?] )
+"
 
 src_unpack() {
 	# Prebuilt jar, nothing to unpack.
@@ -30,13 +36,15 @@ src_install() {
 	# native loader (java.lang.System::load in an unnamed module) and
 	# pre-empts the future JDK hard block on restricted native methods
 	# (verified against JDK 25); supported by all JDKs >= 17.
+	local java_args="--enable-native-access=ALL-UNNAMED"
+	use system-prob && java_args+=" -Dprob.home=/opt/prob"
 	java-pkg_dolauncher "${PN}" \
 		--jar "${PN}.jar" \
-		--java_args "--enable-native-access=ALL-UNNAMED"
+		--java_args "${java_args}"
 }
 
 pkg_postinst() {
-	if [[ -z ${REPLACING_VERSIONS} ]]; then
-		elog "ProB2-UI downloads the matching ProB kernel into ~/.prob on first use."
+	if [[ -z ${REPLACING_VERSIONS} ]] && ! use system-prob; then
+		elog "ProB2-UI extracts its bundled ProB kernel to a private temporary directory at runtime."
 	fi
 }
