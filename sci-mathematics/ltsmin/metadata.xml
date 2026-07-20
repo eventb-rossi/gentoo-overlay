@@ -12,6 +12,7 @@
 		<flag name="prob">Enable the ProB frontend and prob2lts tools</flag>
 		<flag name="profiler">Enable gperftools profiling support in spgsolver</flag>
 		<flag name="spins">Install the SpinS compiler for Promela models</flag>
+		<flag name="sylvan">Enable Sylvan BDD and LDDmc symbolic state-storage backends</flag>
 		<flag name="zip">Enable ZIP archive input and output</flag>
 	</use>
 	<upstream>

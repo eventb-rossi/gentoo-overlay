@@ -35,7 +35,7 @@ S="${WORKDIR}/${P}"
 LICENSE="BSD GPL-2+ buddy? ( buddy ) spins? ( Apache-2.0 )"
 SLOT="0"
 KEYWORDS="~amd64"
-IUSE="+gmp +prob boost buddy mpi pnml profiler spins test zip"
+IUSE="+gmp +prob +sylvan boost buddy mpi pnml profiler spins test zip"
 
 BDEPEND="
 	>=sys-devel/bison-3.0.2
@@ -46,30 +46,30 @@ BDEPEND="
 		>=virtual/jdk-11:*
 	)
 "
-DEPEND="
+COMMON_DEPEND="
 	dev-libs/popt
 	virtual/zlib
-	boost? ( dev-libs/boost )
 	gmp? ( dev-libs/gmp:= )
 	mpi? ( virtual/mpi )
 	pnml? ( dev-libs/libxml2:2= )
 	prob? ( net-libs/czmq:= )
 	profiler? ( dev-util/google-perftools:=[-minimal] )
+	sylvan? (
+		>=sci-mathematics/sylvan-1.1
+		<sci-mathematics/sylvan-1.2
+	)
 	zip? ( dev-libs/libzip:= )
 "
+DEPEND="
+	${COMMON_DEPEND}
+	boost? ( dev-libs/boost )
+"
 RDEPEND="
-	dev-libs/popt
-	virtual/zlib
-	gmp? ( dev-libs/gmp:= )
-	mpi? ( virtual/mpi )
-	pnml? ( dev-libs/libxml2:2= )
-	prob? ( net-libs/czmq:= )
-	profiler? ( dev-util/google-perftools:=[-minimal] )
+	${COMMON_DEPEND}
 	spins? (
 		sys-devel/gcc
 		>=virtual/jre-1.8:*
 	)
-	zip? ( dev-libs/libzip:= )
 "
 
 RESTRICT="!test? ( test )"
@@ -155,12 +155,12 @@ src_configure() {
 		--with-mcrl2=no
 		--with-viennacl="${T}/disabled"
 		--without-spot
-		--without-sylvan
 		$(use_enable mpi dist)
 		$(use_enable pnml)
 		$(use_enable prob)
 		$(use_with boost)
 		$(use_with spins)
+		$(use_with sylvan)
 		--with-bignum=$(usex gmp gmp no)
 	)
 
@@ -211,16 +211,37 @@ src_test() {
 		end trans
 	EOF
 
+	local lace_args=()
+	use sylvan && lace_args=( --lace-workers=1 )
+
 	local output
 	output=$("${S}/src/pins2lts-seq/etf2lts-seq" "${testdir}/cycle.etf" 2>&1) || die
 	[[ ${output} == *"2 states 2 transitions"* ]] || die "sequential ETF test failed"
 	output=$("${S}/src/pins2lts-sym/etf2lts-sym" "${testdir}/cycle.etf" 2>&1) || die
 	[[ ${output} == *"state space has 2 states"* ]] || die "symbolic ETF test failed"
+
+	if use sylvan; then
+		[[ ${output} == *"Creating a multi-core ListDD domain"* ]] ||
+			die "default symbolic backend is not Sylvan LDDmc"
+		output=$("${S}/src/pins2lts-sym/etf2lts-sym" "${lace_args[@]}" \
+			--vset=lddmc "${testdir}/cycle.etf" 2>&1) || die
+		[[ ${output} == *"Creating a multi-core ListDD domain"* ]] ||
+			die "Sylvan LDDmc ETF test failed"
+		[[ ${output} == *"state space has 2 states"* ]] ||
+			die "Sylvan LDDmc ETF state count failed"
+		output=$("${S}/src/pins2lts-sym/etf2lts-sym" "${lace_args[@]}" \
+			--vset=sylvan "${testdir}/cycle.etf" 2>&1) || die
+		[[ ${output} == *"Creating a Sylvan domain"* ]] ||
+			die "Sylvan BDD ETF test failed"
+		[[ ${output} == *"state space has 2 states"* ]] ||
+			die "Sylvan BDD ETF state count failed"
+	fi
+
 	output=$("${S}/src/pins2lts-mc/etf2lts-mc" "${testdir}/cycle.etf" 2>&1) || die
 	[[ ${output} == *"2 states 2 transitions"* ]] || die "multicore ETF test failed"
 
 	if use buddy; then
-		output=$("${S}/src/pins2lts-sym/etf2lts-sym" --vset=fdd \
+		output=$("${S}/src/pins2lts-sym/etf2lts-sym" "${lace_args[@]}" --vset=fdd \
 			"${testdir}/cycle.etf" 2>&1) || die
 		[[ ${output} == *"Creating a BuDDy fdd domain"* ]] || die "BuDDy ETF test failed"
 	fi
