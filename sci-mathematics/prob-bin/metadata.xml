@@ -5,6 +5,9 @@
 		<email>efremov@linux.com</email>
 		<name>Denis Efremov</name>
 	</maintainer>
+	<use>
+		<flag name="ltsmin">Install LTSmin model-checking support and make it discoverable by ProB</flag>
+	</use>
 	<upstream>
 		<doc lang="en">https://prob.hhu.de/w/index.php?title=Tutorial</doc>
 		<bugs-to>https://github.com/hhu-stups/prob-issues/issues</bugs-to>

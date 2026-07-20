@@ -14,6 +14,7 @@ S="${WORKDIR}/ProB"
 LICENSE="EPL-1.0"
 SLOT="0"
 KEYWORDS="-* ~amd64"
+IUSE="ltsmin"
 
 # Prebuilt SICStus-Prolog binaries. The parser jars (lib/*.jar) need a
 # JRE and the Tcl/Tk UI needs a system Tcl/Tk. Most native helpers ship
@@ -26,6 +27,7 @@ RDEPEND="
 	dev-libs/gmp
 	sys-apps/util-linux
 	>=virtual/jre-1.8:*
+	ltsmin? ( sci-mathematics/ltsmin[prob] )
 "
 
 RESTRICT="strip"
@@ -49,6 +51,15 @@ src_install() {
 	cd "${WORKDIR}" || die
 	mv "${S}" "${ED}/opt/prob" || die
 	mkdir "${S}" || die # later phases expect ${S} to exist
+
+	if use ltsmin; then
+		# ProB discovers LTSmin relative to its own kernel home.  Keep these
+		# links owned by ProB so LTSmin never writes into another package's
+		# private tree.
+		dosym -r /usr/bin/prob2lts-seq /opt/prob/lib/prob2lts-seq
+		dosym -r /usr/bin/prob2lts-sym /opt/prob/lib/prob2lts-sym
+		dosym -r /usr/bin/ltsmin-printtrace /opt/prob/lib/ltsmin-printtrace
+	fi
 }
 
 pkg_postinst() {
