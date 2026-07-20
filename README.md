@@ -44,6 +44,7 @@ auto-sync = yes
 | `sci-mathematics/prob2-ui` | JavaFX-based animator and model checker built on ProB |
 | `sci-mathematics/prob-bin` | Animator, constraint solver and model checker for B, Event-B, CSP, TLA+, Z |
 | `sci-mathematics/ltsmin` | Language-independent model-checking tools, including ProB state-space exploration |
+| `sci-mathematics/sylvan` | Parallel BDD and LDD backend for LTSmin symbolic model checking |
 | `sci-mathematics/eventb-to-txt` | Convert Rodin Event-B models to plain-text format |
 | `sci-mathematics/evbt` | Event-B tool for code generation and documentation |
 | `sci-mathematics/tlc4b` | Model-check classical B specifications via TLA+/TLC |
@@ -71,7 +72,18 @@ echo "sci-mathematics/prob2-ui system-prob ltsmin" >> /etc/portage/package.use
 ```
 
 The second `eventb-animate` line is optional; omit it to retain the bundled
-kernel. LTSmin is built without LTO because version 3.0.2 contains incompatible
+kernel.
+
+LTSmin's `sylvan` USE flag is enabled by default. This makes Sylvan's LDDmc
+backend the default for symbolic exploration, including ProB's
+`prob2lts-sym` mode. ProB invokes that mode with one Lace worker. To retain
+LTSmin's native ListDD64 backend instead, disable Sylvan:
+
+```sh
+echo "sci-mathematics/ltsmin -sylvan" >> /etc/portage/package.use
+```
+
+LTSmin is built without LTO because version 3.0.2 contains incompatible
 cross-translation-unit declarations that GCC's link-time optimizer rejects.
 
 ### Rodin release candidates
