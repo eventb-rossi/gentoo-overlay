@@ -85,6 +85,10 @@ PACKAGES = [
      "source": {"type": "github", "repo": "hhu-stups/tlc4b"}},
     {"atom": "sci-mathematics/ltsmin", "mode": "track",
      "source": {"type": "github", "repo": "utwente-fmt/ltsmin"}},
+    # LTSmin 3.0.2 requires Sylvan >=1.1,<1.2. Newer Sylvan releases need an
+    # LTSmin compatibility port before they can be packaged here.
+    {"atom": "sci-mathematics/sylvan", "mode": "track",
+     "source": {"type": "github", "repo": "trolando/sylvan"}},
     # Cargo workspace: the bump regenerates CRATES/LICENSE/Manifest with
     # pycargoebuild (cmd_bump_cargo). cargo_member is the workspace member to run
     # pycargoebuild in — it refuses at a virtual workspace root, and any member
