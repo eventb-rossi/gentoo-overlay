@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<use>
+		<flag name="boost">Enable advanced variable-reordering algorithms using <pkg>dev-libs/boost</pkg></flag>
+		<flag name="buddy">Enable the BuDDy finite-domain decision diagram backend using LTSmin's compatible private fork</flag>
+		<flag name="pnml">Enable the Petri Net Markup Language frontend</flag>
+		<flag name="prob">Enable the ProB frontend and prob2lts tools</flag>
+		<flag name="profiler">Enable gperftools profiling support in spgsolver</flag>
+		<flag name="spins">Install the SpinS compiler for Promela models</flag>
+		<flag name="zip">Enable ZIP archive input and output</flag>
+	</use>
+	<upstream>
+		<bugs-to>https://github.com/utwente-fmt/ltsmin/issues</bugs-to>
+		<remote-id type="github">utwente-fmt/ltsmin</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		LTSmin is a language-independent model-checking toolset built around
+		the Partitioned Interface to the Next-State function (PINS). It
+		provides sequential, multicore and symbolic exploration algorithms
+		and frontends for transition-system formats and modeling tools such
+		as ETF, DVE, Promela, PNML and ProB.
+	</longdescription>
+</pkgmetadata>

@@ -1,0 +1,24 @@
+The cache-line configure test uses FILE, fopen(), fscanf(), and fclose()
+before stdio.h is included.  Modern compilers reject the implicit declarations,
+so the test always falls back to a hard-coded 64-byte cache line.
+
+Patch both the m4 source and the generated configure script because the release
+tarball ships generated build machinery and the ebuild deliberately avoids
+autoreconf with its obsolete Automake version.
+
+--- a/m4/acx_cache_line.m4
++++ b/m4/acx_cache_line.m4
+@@ -59,4 +59,4 @@ size_t cache_line_size() {
+ #elif defined(linux)
+-
++#include <stdio.h>
+ size_t cache_line_size() {
+     FILE * p = 0;
+--- a/configure
++++ b/configure
+@@ -27211,4 +27211,4 @@ size_t cache_line_size() {
+ #elif defined(linux)
+-
++#include <stdio.h>
+ size_t cache_line_size() {
+     FILE * p = 0;

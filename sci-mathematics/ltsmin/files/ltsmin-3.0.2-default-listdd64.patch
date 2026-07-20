@@ -1,0 +1,13 @@
+Use the native 64-bit symbolic backend when Sylvan is unavailable.
+
+--- a/src/vset-lib/vector_set.c
++++ b/src/vset-lib/vector_set.c
+@@ -38,7 +38,7 @@ extern vdom_t vdom_create_lddmc_from_file(FILE *f);
+
+ vset_implementation_t vset_default_domain = VSET_LDDmc;
+ #else
+-vset_implementation_t vset_default_domain = VSET_ListDD;
++vset_implementation_t vset_default_domain = VSET_ListDD64;
+ #endif
+
+ int vset_cache_diff = 0;

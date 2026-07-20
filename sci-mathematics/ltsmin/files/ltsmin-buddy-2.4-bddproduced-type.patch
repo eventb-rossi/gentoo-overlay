@@ -1,0 +1,8 @@
+Match the declaration to kernel.c.  The mismatch is rejected by GCC LTO and
+could otherwise miscompile the BuDDy statistics counter.
+
+--- a/src/reorder.c
++++ b/src/reorder.c
+@@ -107,1 +107,1 @@
+-extern int bddproduced;
++extern long int bddproduced;

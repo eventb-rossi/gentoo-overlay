@@ -1,0 +1,20 @@
+Fix a shell-command typo in the fallback from GMP to LibTomMath.  Patch both
+the Autoconf input and the generated configure script so the correction
+survives a future autoreconf.
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -171 +171 @@ AS_CASE(["$with_bignum"],
+-     AS_IF([text x"$with_bignum" = xyes || test x"$with_bignum" = xtommath],
++     AS_IF([test x"$with_bignum" = xyes || test x"$with_bignum" = xtommath],
+--- a/configure
++++ b/configure
+@@ -24846,7 +24846,7 @@ fi
+ fi
+
+ fi
+-     if text x"$with_bignum" = xyes || test x"$with_bignum" = xtommath; then :
++     if test x"$with_bignum" = xyes || test x"$with_bignum" = xtommath; then :
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for mp_init in -ltommath" >&5
+ $as_echo_n "checking for mp_init in -ltommath... " >&6; }
+ if ${ac_cv_lib_tommath_mp_init+:} false; then :

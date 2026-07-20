@@ -1,0 +1,25 @@
+Use the MPI-2 communicator error-handler API retained by MPI-3, fix the format
+used for the queue's size_t length, and make shared globals compatible with
+GCC's -fno-common default.
+
+--- a/src/hre-mpi/hre_mpi.c
++++ b/src/hre-mpi/hre_mpi.c
+@@ -424,7 +424,7 @@ mpi_start(int *argc_p,char **argv_p[],int me,int peers){
+     } else {
+         MPI_Init(argc_p,argv_p);
+     }
+-    MPI_Errhandler_set(MPI_COMM_WORLD,MPI_ERRORS_ARE_FATAL);
++    MPI_Comm_set_errhandler(MPI_COMM_WORLD,MPI_ERRORS_ARE_FATAL);
+     hre_context_t ctx=HREctxMPI(MPI_COMM_WORLD);
+     HREmainSet(ctx);
+     HREglobalSet(ctx);
+--- a/src/hre-mpi/mpi_event_loop.c
++++ b/src/hre-mpi/mpi_event_loop.c
+@@ -28 +28 @@ void event_statistics(log_t log,event_queue_t queue){
+-    Print(log,"queue size is %d",array_size(queue->man));
++    Print(log,"queue size is %zu",array_size(queue->man));
+--- a/src/ce/Dtaudlts.c
++++ b/src/ce/Dtaudlts.c
+@@ -41 +41 @@ int* totsize;
+-int me, nodes;
++extern int me, nodes;

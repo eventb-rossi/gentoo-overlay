@@ -1,0 +1,14 @@
+Build SpinS from the generated parser sources committed in its repository.
+The vendored JavaCC jar is removed by the ebuild.  Target Java 8 explicitly
+while allowing Gentoo to use a current build JDK.
+
+--- a/spins/src/build.xml
++++ b/spins/src/build.xml
+@@ -28 +28 @@
+-	<target name="build" depends="javacc">
++	<target name="build" depends="prepare">
+@@ -64,2 +64,2 @@
+-			   includeantruntime="yes">
+-			  <compilerarg line="-Xprefer:newer -XDignore.symbol.file" />
++			   release="8"
++			   includeantruntime="false">

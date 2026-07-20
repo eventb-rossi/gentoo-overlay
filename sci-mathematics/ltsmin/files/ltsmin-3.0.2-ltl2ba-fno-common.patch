@@ -1,0 +1,24 @@
+From f2426dfdeb327924f2035fdb6c88542c19c5ee13 Mon Sep 17 00:00:00 2001
+From: Tom van Dijk <tom@tvandijk.nl>
+Date: Sun, 25 Oct 2020 12:07:44 +0100
+Subject: [PATCH] Make some variables static to avoid link errors.
+
+Backported from https://github.com/utwente-fmt/ltl2ba/commit/f2426dfdeb327924f2035fdb6c88542c19c5ee13
+
+--- a/ltl2ba/buchi.c
++++ b/ltl2ba/buchi.c
+@@ -45,2 +45,3 @@ BState *bstack, *bstates, *bremoved;
+-BScc *scc_stack;
+-int bstate_count = 0, btrans_count = 0, rank;
++static BScc *scc_stack;
++int bstate_count = 0, btrans_count = 0;
++static int rank;
+--- a/ltl2ba/generalized.c
++++ b/ltl2ba/generalized.c
+@@ -45,3 +45,4 @@ GState *gstack, *gremoved, *gstates, **init;
+-GScc *scc_stack;
++static GScc *scc_stack;
+ int init_size = 0, gstate_id = 1, gstate_count = 0, gtrans_count = 0;
+-int *fin, *final, rank, scc_id, scc_size, *bad_scc;
++int *fin, *final, scc_id, scc_size, *bad_scc;
++static int rank;

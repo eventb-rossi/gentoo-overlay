@@ -1,0 +1,7 @@
+ProB passes Lace worker options to the symbolic frontend even without Sylvan.
+
+--- a/src/pins2lts-sym/options.c
++++ b/src/pins2lts-sym/options.c
+@@ -229,1 +229,1 @@
+-#ifdef HAVE_SYLVAN
++#if defined(HAVE_SYLVAN) || defined(PROB)
