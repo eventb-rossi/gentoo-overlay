@@ -5,6 +5,10 @@
 		<email>efremov@linux.com</email>
 		<name>Denis Efremov</name>
 	</maintainer>
+	<use>
+		<flag name="ltsmin">Enable LTSmin model checking with either the bundled or system ProB kernel</flag>
+		<flag name="system-prob">Use <pkg>sci-mathematics/prob-bin</pkg> instead of the bundled ProB kernel</flag>
+	</use>
 	<upstream>
 		<bugs-to>https://github.com/eventb-rossi/eventb-animate/issues</bugs-to>
 		<remote-id type="github">eventb-rossi/eventb-animate</remote-id>
