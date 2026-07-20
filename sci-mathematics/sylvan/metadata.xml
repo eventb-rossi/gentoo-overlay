@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person">
+		<email>efremov@linux.com</email>
+		<name>Denis Efremov</name>
+	</maintainer>
+	<upstream>
+		<bugs-to>https://github.com/trolando/sylvan/issues</bugs-to>
+		<remote-id type="github">trolando/sylvan</remote-id>
+	</upstream>
+	<longdescription lang="en">
+		Sylvan is a parallel decision diagram library supporting binary
+		decision diagrams (BDDs), multi-terminal BDDs and list decision
+		diagrams. It uses the Lace framework for parallel execution.
+	</longdescription>
+</pkgmetadata>
