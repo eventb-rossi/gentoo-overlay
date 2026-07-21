@@ -31,8 +31,8 @@ CRATES="
 	cc@1.2.62
 	cfg-if@1.0.4
 	cipher@0.5.1
-	clap@4.6.1
-	clap_builder@4.6.0
+	clap@4.6.2
+	clap_builder@4.6.2
 	clap_complete@4.6.7
 	clap_derive@4.6.1
 	clap_lex@1.1.0
@@ -63,15 +63,15 @@ CRATES="
 	fnv@1.0.7
 	foldhash@0.1.5
 	form_urlencoded@1.2.2
-	futures-channel@0.3.32
-	futures-core@0.3.32
-	futures-executor@0.3.32
-	futures-io@0.3.32
-	futures-macro@0.3.32
-	futures-sink@0.3.32
-	futures-task@0.3.32
-	futures-util@0.3.32
-	futures@0.3.32
+	futures-channel@0.3.33
+	futures-core@0.3.33
+	futures-executor@0.3.33
+	futures-io@0.3.33
+	futures-macro@0.3.33
+	futures-sink@0.3.33
+	futures-task@0.3.33
+	futures-util@0.3.33
+	futures@0.3.33
 	generic-array@0.14.7
 	getrandom@0.3.4
 	getrandom@0.4.2
@@ -158,9 +158,9 @@ CRATES="
 	same-file@1.0.6
 	scopeguard@1.2.0
 	semver@1.0.28
-	serde@1.0.228
-	serde_core@1.0.228
-	serde_derive@1.0.228
+	serde@1.0.229
+	serde_core@1.0.229
+	serde_derive@1.0.229
 	serde_json@1.0.150
 	serde_repr@0.1.20
 	sha1@0.11.0
@@ -178,21 +178,22 @@ CRATES="
 	str_indices@0.4.4
 	strsim@0.11.1
 	syn@2.0.117
+	syn@3.0.2
 	sync_wrapper@1.0.2
 	synstructure@0.13.2
 	tempfile@3.27.0
 	test-case-core@3.3.1
 	test-case-macros@3.3.1
 	test-case@3.3.1
-	thiserror-impl@2.0.18
-	thiserror@2.0.18
+	thiserror-impl@2.0.19
+	thiserror@2.0.19
 	thread_local@1.1.9
 	time-core@0.1.8
 	time@0.3.47
 	tinystr@0.8.3
 	tokio-macros@2.7.0
 	tokio-util@0.7.18
-	tokio@1.52.3
+	tokio@1.53.0
 	tower-layer@0.3.3
 	tower-lsp-macros@0.9.0
 	tower-lsp@0.20.0
