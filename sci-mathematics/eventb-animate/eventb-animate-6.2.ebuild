@@ -7,7 +7,7 @@ inherit java-pkg-2
 
 DESCRIPTION="Animate Event-B models with the ProB model checker"
 HOMEPAGE="https://github.com/eventb-rossi/eventb-animate"
-SRC_URI="https://github.com/eventb-rossi/${PN}/releases/download/v${PV}/${PN}.jar -> ${P}.jar"
+SRC_URI="https://github.com/eventb-rossi/${PN}/releases/download/v${PV}/${P}.jar"
 S="${WORKDIR}"
 
 LICENSE="Apache-2.0"
