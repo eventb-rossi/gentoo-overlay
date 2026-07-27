@@ -14,7 +14,7 @@ CRATES="
 	anstyle-query@1.1.5
 	anstyle-wincon@3.0.11
 	anstyle@1.0.14
-	anyhow@1.0.103
+	anyhow@1.0.104
 	ar_archive_writer@0.5.2
 	async-trait@0.1.89
 	auto_impl@1.3.0
@@ -31,10 +31,10 @@ CRATES="
 	cc@1.2.62
 	cfg-if@1.0.4
 	cipher@0.5.1
-	clap@4.6.2
+	clap@4.6.4
 	clap_builder@4.6.2
 	clap_complete@4.6.7
-	clap_derive@4.6.1
+	clap_derive@4.6.4
 	clap_lex@1.1.0
 	cmov@0.5.4
 	colorchoice@1.0.5
@@ -123,7 +123,7 @@ CRATES="
 	parking_lot_core@0.9.12
 	pbkdf2@0.13.0
 	percent-encoding@2.3.2
-	pest@2.8.7
+	pest@2.8.8
 	pest_derive@2.8.7
 	pest_generator@2.8.7
 	pest_meta@2.8.7
@@ -161,7 +161,7 @@ CRATES="
 	serde@1.0.229
 	serde_core@1.0.229
 	serde_derive@1.0.229
-	serde_json@1.0.150
+	serde_json@1.0.151
 	serde_repr@0.1.20
 	sha1@0.11.0
 	sha2@0.10.9
@@ -193,7 +193,7 @@ CRATES="
 	tinystr@0.8.3
 	tokio-macros@2.7.0
 	tokio-util@0.7.18
-	tokio@1.53.0
+	tokio@1.53.1
 	tower-layer@0.3.3
 	tower-lsp-macros@0.9.0
 	tower-lsp@0.20.0
