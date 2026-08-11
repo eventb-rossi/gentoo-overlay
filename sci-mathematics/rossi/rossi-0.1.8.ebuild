@@ -31,9 +31,9 @@ CRATES="
 	cc@1.2.62
 	cfg-if@1.0.4
 	cipher@0.5.1
-	clap@4.6.4
-	clap_builder@4.6.2
-	clap_complete@4.6.7
+	clap@4.6.6
+	clap_builder@4.6.6
+	clap_complete@4.6.9
 	clap_derive@4.6.4
 	clap_lex@1.1.0
 	cmov@0.5.4
@@ -114,7 +114,9 @@ CRATES="
 	miniz_oxide@0.8.9
 	mio@1.2.0
 	nu-ansi-term@0.50.3
+	num-bigint@0.4.8
 	num-conv@0.2.1
+	num-integer@0.1.46
 	num-traits@0.2.19
 	object@0.37.3
 	once_cell@1.21.4
@@ -124,9 +126,9 @@ CRATES="
 	pbkdf2@0.13.0
 	percent-encoding@2.3.2
 	pest@2.8.8
-	pest_derive@2.8.7
-	pest_generator@2.8.7
-	pest_meta@2.8.7
+	pest_derive@2.8.8
+	pest_generator@2.8.8
+	pest_meta@2.8.8
 	pin-project-internal@1.1.13
 	pin-project-lite@0.2.17
 	pin-project@1.1.13
@@ -173,7 +175,7 @@ CRATES="
 	smallvec@1.15.1
 	socket2@0.6.3
 	stable_deref_trait@1.2.1
-	stacker@0.1.24
+	stacker@0.1.25
 	stats_alloc@0.1.10
 	str_indices@0.4.4
 	strsim@0.11.1
