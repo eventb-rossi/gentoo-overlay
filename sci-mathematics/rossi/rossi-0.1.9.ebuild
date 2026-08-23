@@ -256,7 +256,7 @@ CRATES="
 	zstd@0.13.3
 "
 
-inherit cargo shell-completion
+inherit cargo edo shell-completion
 
 DESCRIPTION="Rust toolchain for Event-B: parser, static checker, CLI, and language server"
 HOMEPAGE="https://github.com/eventb-rossi/rossi"
@@ -273,8 +273,14 @@ LICENSE+="
 "
 SLOT="0"
 KEYWORDS="~amd64"
-IUSE="test"
+IUSE="pgo test"
 RESTRICT="!test? ( test )"
+
+# dev-lang/rust[system-llvm] guarantees a matching llvm-core/llvm:<slot> is
+# installed (rust's own DEPEND pins that slot), which is required to merge
+# PGO profiles with a compatible llvm-profdata. Bundled-LLVM rust builds and
+# dev-lang/rust-bin ship no llvm-profdata at all, so pgo is unsupported there.
+BDEPEND="pgo? ( dev-lang/rust[system-llvm] )"
 
 # These tests guard that the in-repo tree-sitter editor grammar
 # (editors/tree-sitter-eventb, a git submodule absent from the release tarball)
@@ -287,10 +293,41 @@ CARGO_SKIP_TESTS=(
 
 DOCS=( README.md )
 
+src_compile() {
+	if ! use pgo; then
+		cargo_src_compile
+		return
+	fi
+
+	# Two-phase profile-guided optimization build, mirroring upstream's
+	# release workflow (.github/workflows/release.yml): instrument+train the
+	# CLI, merge the collected profile, then rebuild both binaries using it.
+	# The two cargo_src_compile calls must differ ONLY in the trailing
+	# -Cprofile-generate/-Cprofile-use flag: any other RUSTFLAGS difference
+	# changes rustc's -Cmetadata hash and silently breaks profile matching.
+	local llvm_ver
+	llvm_ver=$(rustc --version --verbose | sed -n 's/^LLVM version: \([0-9]*\).*/\1/p')
+	local profdata="/usr/lib/llvm/${llvm_ver}/bin/llvm-profdata"
+	[[ -x ${profdata} ]] || die "llvm-profdata not found at ${profdata}; USE=pgo requires dev-lang/rust[system-llvm] and a matching llvm-core/llvm:${llvm_ver}"
+
+	local pgodir="${T}/pgo-profiles"
+	local rustflags_base="${RUSTFLAGS}"
+
+	RUSTFLAGS="${rustflags_base} -Cprofile-generate=${pgodir}" \
+		cargo_src_compile --bin rossi
+
+	bash "${S}"/scripts/pgo-train.sh "$(cargo_target_dir)/rossi" || die
+
+	edo "${profdata}" merge -o "${T}"/pgo-merged.profdata "${pgodir}"
+
+	RUSTFLAGS="${rustflags_base} -Cprofile-use=${T}/pgo-merged.profdata" \
+		cargo_src_compile --bin rossi --bin eventb-language-server
+}
+
 src_install() {
-	# Both binaries come from the single `cargo build` the default src_compile
-	# runs; install them from the shared target dir rather than `cargo install`
-	# per crate, which would re-run the LTO release build for each.
+	# Both binaries come from the cargo build(s) src_compile runs; install them
+	# from the shared target dir rather than `cargo install` per crate, which
+	# would re-run the LTO release build for each.
 	dobin "$(cargo_target_dir)"/{rossi,eventb-language-server}
 
 	einstalldocs

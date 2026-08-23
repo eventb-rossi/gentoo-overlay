@@ -16,4 +16,7 @@
 		reformats models, and powers editor integration over the Language
 		Server Protocol.
 	</longdescription>
+	<use>
+		<flag name="pgo">Build with profile-guided optimization (roughly doubles build time; requires <pkg>dev-lang/rust</pkg>[system-llvm])</flag>
+	</use>
 </pkgmetadata>
