@@ -271,15 +271,35 @@ src_compile() {
 	local pgodir="${T}/pgo-profiles"
 	local rustflags_base="${RUSTFLAGS}"
 
-	RUSTFLAGS="${rustflags_base} -Cprofile-generate=${pgodir}" \
-		cargo_src_compile --bin rossi
+	# Drop profiles left over from an earlier attempt (FEATURES=keepwork), so
+	# llvm-profdata cannot merge in data from a differently-built binary.
+	rm -rf "${pgodir}" || die
 
-	bash "${S}"/scripts/pgo-train.sh "$(cargo_target_dir)/rossi" || die
+	# RUSTFLAGS must be assigned as a plain (non-local, non-prefix) variable.
+	# cargo_env() folds ${RUSTFLAGS} into CARGO_TARGET_<TRIPLE>_RUSTFLAGS and
+	# then unsets RUSTFLAGS in the subshell it runs cargo in. `unset` pops only
+	# the innermost binding, so a `RUSTFLAGS=... cargo_src_compile` prefix
+	# assignment -- or a `local RUSTFLAGS` -- would re-expose the make.conf
+	# value, which cargo prefers over CARGO_TARGET_<TRIPLE>_RUSTFLAGS. That
+	# discards the whole eclass flag string: no instrumentation, and no
+	# LDFLAGS, linker or -Cstrip=none either.
+	RUSTFLAGS="${rustflags_base} -Cprofile-generate=${pgodir}"
+	cargo_src_compile --bin rossi
+
+	edo bash "${S}"/scripts/pgo-train.sh "$(cargo_target_dir)/rossi"
+
+	# An uninstrumented binary trains silently and writes nothing; say so here
+	# rather than letting llvm-profdata fail with a bare ENOENT on ${pgodir}.
+	local profraws=( "${pgodir}"/*.profraw )
+	[[ -e ${profraws[0]} ]] ||
+		die "PGO training produced no profile data in ${pgodir}"
 
 	edo "${profdata}" merge -o "${T}"/pgo-merged.profdata "${pgodir}"
 
-	RUSTFLAGS="${rustflags_base} -Cprofile-use=${T}/pgo-merged.profdata" \
-		cargo_src_compile --bin rossi --bin eventb-language-server
+	RUSTFLAGS="${rustflags_base} -Cprofile-use=${T}/pgo-merged.profdata"
+	cargo_src_compile --bin rossi --bin eventb-language-server
+
+	RUSTFLAGS="${rustflags_base}"
 }
 
 src_install() {
