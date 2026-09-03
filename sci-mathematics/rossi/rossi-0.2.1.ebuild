@@ -32,11 +32,14 @@ CRATES="
 	clap_lex@1.1.0
 	colorchoice@1.0.5
 	crc32fast@1.5.0
+	crossbeam-deque@0.8.7
+	crossbeam-epoch@0.9.20
 	crossbeam-utils@0.8.22
 	dashmap@5.5.3
 	dashmap@6.2.1
 	diffy@0.5.1
 	displaydoc@0.2.7
+	either@1.18.0
 	equivalent@1.0.2
 	errno@0.3.14
 	fastrand@2.5.0
@@ -80,6 +83,7 @@ CRATES="
 	kqueue@1.2.1
 	lazy_static@1.5.0
 	libc@0.2.189
+	libmimalloc-sys@0.1.49
 	linux-raw-sys@0.12.1
 	litemap@0.8.3
 	lock_api@0.4.14
@@ -87,6 +91,7 @@ CRATES="
 	lsp-types@0.94.1
 	matchers@0.2.0
 	memchr@2.8.3
+	mimalloc@0.1.52
 	miniz_oxide@0.8.9
 	mio@1.2.2
 	notify-types@2.1.0
@@ -122,6 +127,8 @@ CRATES="
 	rand_chacha@0.9.0
 	rand_core@0.9.5
 	rand_xorshift@0.4.0
+	rayon-core@1.13.0
+	rayon@1.12.0
 	redox_syscall@0.5.18
 	regex-automata@0.4.18
 	regex-syntax@0.8.11
@@ -240,13 +247,14 @@ RESTRICT="!test? ( test )"
 # dev-lang/rust-bin ship no llvm-profdata at all, so pgo is unsupported there.
 BDEPEND="pgo? ( dev-lang/rust[system-llvm] )"
 
-# These tests guard that the in-repo tree-sitter editor grammar
+# This test guards that the in-repo tree-sitter editor grammar
 # (editors/tree-sitter-eventb, a git submodule absent from the release tarball)
-# stays in sync with the canonical token tables. They check files this package
-# neither builds nor installs, so skip them rather than fetch the submodule.
+# stays in sync with the canonical token tables. It checks files this package
+# neither builds nor installs, so skip it rather than fetch the submodule.
+# The fuzzer's grammar-derived tests read the same submodule but skip
+# themselves when it is missing, so they need no entry here.
 CARGO_SKIP_TESTS=(
 	editor_grammars_are_up_to_date
-	generated_nodes_are_listed_in_token_choice
 )
 
 DOCS=( README.md )
