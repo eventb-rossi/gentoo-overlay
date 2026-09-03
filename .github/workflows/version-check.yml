@@ -158,7 +158,12 @@ jobs:
           # that read it; skip the same names here.
           args=()
           for t in $SKIP_TESTS; do args+=(--skip "$t"); done
-          cargo test --release --locked -- "${args[@]}"
+          # Portage's src_test runs without CI set, and rossi's eventb-fuzz tests
+          # only turn a missing grammar submodule (absent from the release
+          # tarball) into a hard error when CI is set — grammar_is_required() in
+          # crates/eventb-fuzz. Unset it so this step mirrors src_test rather
+          # than failing on tests the ebuild never sees fail.
+          env -u CI cargo test --release --locked -- "${args[@]}"
       - name: Open pull request
         id: pr
         if: steps.bump.outputs.bumped == 'true' && steps.verify.outcome == 'success'
