@@ -7,7 +7,9 @@ EAPI=8
 
 CRATES="
 	adler2@2.0.1
+	ahash@0.8.12
 	aho-corasick@1.1.5
+	allocator-api2@0.2.21
 	anstream@1.0.0
 	anstyle-parse@1.0.0
 	anstyle-query@1.1.5
@@ -22,6 +24,9 @@ CRATES="
 	bit-vec@0.8.0
 	bitflags@1.3.2
 	bitflags@2.13.1
+	borrow-or-share@0.2.4
+	bumpalo@3.20.3
+	bytecount@0.6.9
 	bytes@1.12.1
 	cc@1.4.3
 	cfg-if@1.0.4
@@ -37,17 +42,22 @@ CRATES="
 	crossbeam-utils@0.8.22
 	dashmap@5.5.3
 	dashmap@6.2.1
-	diffy@0.5.1
+	data-encoding@2.11.1
+	diffy@0.5.2
 	displaydoc@0.2.7
 	either@1.18.0
+	email_address@0.2.9
 	equivalent@1.0.2
 	errno@0.3.14
+	fancy-regex@0.19.1
 	fastrand@2.5.0
 	find-msvc-tools@0.1.11
 	flate2@1.1.9
+	fluent-uri@0.4.1
 	fnv@1.0.7
 	foldhash@0.2.0
 	form_urlencoded@1.2.2
+	fraction@0.17.0
 	fsevent-sys@4.1.0
 	futures-channel@0.3.34
 	futures-core@0.3.34
@@ -79,6 +89,10 @@ CRATES="
 	inotify@0.11.5
 	is_terminal_polyfill@1.70.2
 	itoa@1.0.18
+	js-sys@0.3.105
+	jsonschema-regex@0.55.1
+	jsonschema-value@0.55.1
+	jsonschema@0.55.1
 	kqueue-sys@1.1.2
 	kqueue@1.2.1
 	lazy_static@1.5.0
@@ -91,18 +105,26 @@ CRATES="
 	lsp-types@0.94.1
 	matchers@0.2.0
 	memchr@2.8.3
+	micromap@0.3.0
 	mimalloc@0.1.52
 	miniz_oxide@0.8.9
 	mio@1.2.2
 	notify-types@2.1.0
 	notify@8.2.0
 	nu-ansi-term@0.50.3
+	num-bigint@0.4.8
 	num-bigint@0.5.1
+	num-cmp@0.1.0
+	num-complex@0.4.6
 	num-integer@0.1.47
+	num-iter@0.1.46
+	num-rational@0.4.2
 	num-traits@0.2.19
+	num@0.4.3
 	object@0.37.3
 	once_cell@1.21.4
 	once_cell_polyfill@1.70.2
+	outref@0.5.2
 	parking_lot@0.12.5
 	parking_lot_core@0.9.12
 	percent-encoding@2.3.2
@@ -130,8 +152,12 @@ CRATES="
 	rayon-core@1.13.0
 	rayon@1.12.0
 	redox_syscall@0.5.18
+	ref-cast-impl@1.0.27
+	ref-cast@1.0.27
+	referencing@0.55.1
 	regex-automata@0.4.18
 	regex-syntax@0.8.11
+	regex@1.13.1
 	ropey@1.6.1
 	rustix@1.1.4
 	rustversion@1.0.23
@@ -149,11 +175,14 @@ CRATES="
 	simd-adler32@0.3.10
 	slab@0.4.12
 	smallvec@1.15.2
+	socket2@0.6.5
 	stable_deref_trait@1.2.1
 	stacker@0.1.25
 	stats_alloc@0.1.10
 	str_indices@0.4.4
 	strsim@0.11.1
+	strum@0.28.0
+	strum_macros@0.28.0
 	syn@2.0.119
 	syn@3.0.3
 	sync_wrapper@1.0.2
@@ -183,15 +212,23 @@ CRATES="
 	typed-path@0.12.3
 	ucd-trie@0.1.7
 	unarray@0.1.4
+	unicode-general-category@1.1.0
 	unicode-ident@1.0.24
 	url@2.5.8
 	utf8_iter@1.0.4
 	utf8parse@0.2.2
+	uuid-simd@0.8.0
 	valuable@0.1.1
+	version_check@0.9.5
+	vsimd@0.8.0
 	wait-timeout@0.2.1
 	walkdir@2.5.0
 	wasi@0.11.1+wasi-snapshot-preview1
 	wasip2@1.0.1+wasi-0.2.4
+	wasm-bindgen-macro-support@0.2.128
+	wasm-bindgen-macro@0.2.128
+	wasm-bindgen-shared@0.2.128
+	wasm-bindgen@0.2.128
 	winapi-util@0.1.11
 	windows-link@0.2.1
 	windows-sys@0.60.2
@@ -233,7 +270,7 @@ SRC_URI="
 LICENSE="|| ( Apache-2.0 MIT )"
 # Dependent crate licenses
 LICENSE+="
-	Apache-2.0 Apache-2.0-with-LLVM-exceptions CC0-1.0 ISC MIT
+	Apache-2.0 Apache-2.0-with-LLVM-exceptions CC0-1.0 ISC MIT MIT-0
 	Unicode-3.0 ZLIB
 "
 SLOT="0"
@@ -258,6 +295,27 @@ CARGO_SKIP_TESTS=(
 )
 
 DOCS=( README.md )
+
+src_prepare() {
+	# The dump golden references lock the document byte for byte, and one of
+	# the bytes they lock is generator.version -- the crate's own version. The
+	# 0.2.2 release bumped [workspace.package].version in a release-plz pull
+	# request of its own, with nobody there to regenerate the references, so
+	# all three still stamp 0.2.1 and documents_match_the_reference fails on
+	# the version alone rather than on any drift in the format.
+	#
+	# Restamp them with ${PV} so src_test compares what the test is for.
+	# Upstream masked the value after the release (commit cc4e8c76, unreleased
+	# as of 0.2.2); the grep makes the next version bump die here instead of
+	# silently carrying a workaround the tarball no longer needs.
+	local refs=( crates/rossi-build/tests/fixtures/dump_golden/*.json )
+	grep -q '"version": "0\.2\.1"' "${refs[@]}" ||
+		die "dump_golden references no longer stamp 0.2.1 -- drop this workaround"
+	sed -i -e "s/\"version\": \"0\.2\.1\"/\"version\": \"${PV}\"/" \
+		"${refs[@]}" || die
+
+	default
+}
 
 src_compile() {
 	if ! use pgo; then
