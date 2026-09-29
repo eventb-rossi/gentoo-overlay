@@ -40,6 +40,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Test release validation
+        run: python3 -m unittest discover -s .github/scripts -p 'test_version_check.py'
       - name: Scan upstreams
         id: scan
         env:
@@ -106,6 +108,7 @@ jobs:
 
             Review checklist:
             - [ ] Build/install still works (`SRC_URI`, deps, install phases unchanged)
+            - [ ] If `system-prob` is supported, check its ProB version pin
             - [ ] Drop the superseded version if appropriate
             - [ ] `pkgcheck` is green
 

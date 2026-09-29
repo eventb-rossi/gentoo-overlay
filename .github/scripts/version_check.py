@@ -45,6 +45,7 @@ import tarfile
 import tempfile
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 
 REPO_ROOT = Path(os.environ.get("OVERLAY_ROOT") or Path(__file__).resolve().parents[2])
@@ -72,8 +73,7 @@ PACKAGES = [
      "source": {"type": "github", "repo": "eventb-rossi/eventb-to-txt"}},
     {"atom": "sci-mathematics/rodin-headless", "mode": "bump",
      "source": {"type": "github", "repo": "eventb-rossi/rodin-headless"}},
-    # Both detect the version from the same host the distfile lives on, so a
-    # detected version implies its release directory (and artifact) exists.
+    # Detect versions from the release index; the bump validates the distfile.
     {"atom": "sci-mathematics/prob2-ui", "mode": "bump",
      "source": {"type": "apache_index",
                 "url": "https://stups.hhu-hosting.de/downloads/prob2/"}},
@@ -339,6 +339,22 @@ def manifest_line_file(path: Path) -> str:
         return _dist_line(path.name, iter(lambda: fh.read(1 << 20), b""))
 
 
+def manifest_line_prob2_deb(dest: str, url: str, pv: str) -> str:
+    """Hash a ProB2-UI Debian release only if it contains the launchable jar."""
+    with tempfile.TemporaryDirectory(prefix="prob2-ui-bump-") as work:
+        archive = Path(work) / dest
+        download_to(url, archive)
+        subprocess.run(["dpkg-deb", "--extract", str(archive), work], check=True)
+        jar = Path(work) / "opt/prob2-ui/lib/app" / f"prob2-ui-{pv}-linux.jar"
+        if not jar.is_file():
+            raise ValueError(f"{url}: missing {jar.relative_to(work)}")
+        with zipfile.ZipFile(jar) as zf:
+            manifest = zf.read("META-INF/MANIFEST.MF").decode("utf-8")
+        if "Main-Class: de.prob2.ui.Main" not in manifest.splitlines():
+            raise ValueError(f"{url}: jar has no ProB2-UI Main-Class")
+        return manifest_line_file(archive)
+
+
 # --- subcommands -----------------------------------------------------------
 def cmd_check() -> int:
     report = []
@@ -396,10 +412,7 @@ def cmd_bump(atom: str) -> int:
     text = src_ebuild.read_text()
     distfiles = parse_distfiles(text, pn, latest)  # validate SRC_URI before touching the tree
 
-    # PV comes from the filename, so the ebuild body is copied verbatim.
-    new_ebuild.write_text(text)
     print(f"{atom}: {current} -> {latest}")
-    print(f"  created {new_ebuild.relative_to(REPO_ROOT)}")
 
     # Regenerate the thin Manifest: keep existing DIST lines (other versions),
     # add/replace the new version's distfiles. Sorted by filename, like Portage.
@@ -412,8 +425,14 @@ def cmd_bump(atom: str) -> int:
 
     for url, dest in distfiles:
         print(f"  fetching {url}")
-        lines[dest] = manifest_line(dest, url)
+        if atom == "sci-mathematics/prob2-ui":
+            lines[dest] = manifest_line_prob2_deb(dest, url, latest)
+        else:
+            lines[dest] = manifest_line(dest, url)
 
+    # A missing or changed distfile must not leave a partial new ebuild.
+    new_ebuild.write_text(text)
+    print(f"  created {new_ebuild.relative_to(REPO_ROOT)}")
     manifest.write_text("".join(f"{lines[k]}\n" for k in sorted(lines)))
     print(f"  wrote {manifest.relative_to(REPO_ROOT)} ({len(lines)} DIST entries)")
     emit_outputs(bumped="true", pn=pn, old=current, new=latest)

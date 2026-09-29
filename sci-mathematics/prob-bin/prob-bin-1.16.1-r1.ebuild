@@ -33,13 +33,21 @@ RDEPEND="
 RESTRICT="strip"
 QA_PREBUILT="opt/prob/*"
 
+src_prepare() {
+	default
+	# The upstream wrapper chmods root-owned binaries at every launch, which
+	# fails for users when ProB2-UI points prob.home at this installation.
+	cat > probcli.sh <<'EOF' || die
+#!/bin/sh
+exec "$(dirname "$0")/probcli" "$@"
+EOF
+}
+
 src_install() {
 	newicon tcl/icons/prob.xpm prob.xpm
-	# probcli.sh chmods its own binary under "set -e", which fails for a
-	# non-root user against the read-only install, so wrap the binary
-	# directly. StartProB.sh only exports TRAILSTKSIZE and execs prob, so
-	# wrap it to preserve that. Both binaries resolve their home (lib/,
-	# tcl/, stdlib/) from the executable path, so cwd is irrelevant.
+	# Keep the command-line launcher pointed at the binary. StartProB.sh
+	# exports TRAILSTKSIZE, so wrap it to preserve that. Both binaries resolve
+	# their home (lib/, tcl/, stdlib/) from the executable path.
 	make_wrapper prob /opt/prob/StartProB.sh
 	make_wrapper probcli /opt/prob/probcli
 	make_desktop_entry prob "ProB" prob "Development;Science"
