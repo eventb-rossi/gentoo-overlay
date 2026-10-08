@@ -261,27 +261,6 @@ CARGO_SKIP_TESTS=(
 
 DOCS=( README.md )
 
-src_prepare() {
-	# The dump golden references lock the document byte for byte, and one of
-	# the bytes they lock is generator.version -- the crate's own version. The
-	# 0.2.2 release bumped [workspace.package].version in a release-plz pull
-	# request of its own, with nobody there to regenerate the references, so
-	# all three still stamp 0.2.1 and documents_match_the_reference fails on
-	# the version alone rather than on any drift in the format.
-	#
-	# Restamp them with ${PV} so src_test compares what the test is for.
-	# Upstream masked the value after the release (commit cc4e8c76, unreleased
-	# as of 0.2.2); the grep makes the next version bump die here instead of
-	# silently carrying a workaround the tarball no longer needs.
-	local refs=( crates/rossi-build/tests/fixtures/dump_golden/*.json )
-	grep -q '"version": "0\.2\.1"' "${refs[@]}" ||
-		die "dump_golden references no longer stamp 0.2.1 -- drop this workaround"
-	sed -i -e "s/\"version\": \"0\.2\.1\"/\"version\": \"${PV}\"/" \
-		"${refs[@]}" || die
-
-	default
-}
-
 src_compile() {
 	if ! use pgo; then
 		cargo_src_compile
