@@ -182,12 +182,12 @@ def current_versions(atom: str) -> list[str]:
     return out
 
 
-def highest_current(atom: str) -> str | None:
+def highest_current(atom: str, key=version_tuple) -> str | None:
     vs = current_versions(atom)
-    return max(vs, key=version_tuple) if vs else None
+    return max(vs, key=key) if vs else None
 
 
-def highest_current_stable(atom: str) -> str | None:
+def highest_current_stable(atom: str, key=version_tuple) -> str | None:
     """Highest packaged version, ignoring pre-release ebuilds (_rc/_alpha/...).
 
     version_tuple strips suffixes, so highest_current() would rank a masked
@@ -197,7 +197,7 @@ def highest_current_stable(atom: str) -> str | None:
     coexist with the stable version, so the auto-bumper targets the stable line.
     """
     vs = [v for v in current_versions(atom) if not PRERELEASE_RE.search(v)]
-    return max(vs, key=version_tuple) if vs else None
+    return max(vs, key=key) if vs else None
 
 
 # --- latest (upstream) version --------------------------------------------
@@ -260,9 +260,9 @@ BUNDLE_PV_RE = re.compile(
 # since 2611, a bare hash before), can't be derived from the tag; the ebuild
 # keeps it in MY_BUILD.
 BUNDLE_ASSET_RE = re.compile(
-    r"^(?P<pn>[\w-]+?)-(?P<base>\d+(?:\.\d+)*)\.(?P<build>[0-9A-Za-z][0-9A-Za-z-]*?)"
+    r"^rodin-(?P<base>\d+(?:\.\d+)*)\.(?P<build>[0-9A-Za-z][0-9A-Za-z-]*?)"
     r"-rossi-linux\.gtk\.x86_64\.tar\.gz$")
-MY_BUILD_RE = re.compile(r'^MY_BUILD="[^"]*"$', re.MULTILINE)
+MY_BUILD_RE = re.compile(r'^MY_BUILD="([^"]*)"$', re.MULTILINE)
 _FINAL = 1 << 30  # rc component of a final release: an -rcN sorts below it
 
 
@@ -300,7 +300,7 @@ def bundle_pv(parts: dict) -> str:
 def bundle_distfile(pn: str, pv: str, ebuild_text: str) -> str:
     """The distfile name an existing bundle ebuild fetches (its SRC_URI)."""
     m = BUNDLE_PV_RE.match(pv)
-    build = re.search(r'^MY_BUILD="([^"]*)"$', ebuild_text, re.MULTILINE)
+    build = MY_BUILD_RE.search(ebuild_text)
     if not (m and build):
         raise ValueError(f"{pn}-{pv}.ebuild: not a Rodin-Bundle ebuild (PV or MY_BUILD)")
     return f"{pn}-{m['base']}.{build.group(1)}-rossi-linux.gtk.x86_64.tar.gz"
@@ -347,17 +347,17 @@ def bundle_releases(repo: str) -> list[dict]:
 def rodin_bundle_plan(atom: str, source: dict) -> dict:
     """Decide what a bump of `atom` would do.
 
-    Returns {"current", "latest", "target"}: `current` is the highest packaged
-    stable PV (a coexisting masked _rc is not the baseline); `target` is the
-    release to package, or None when up to date:
+    Returns {"current", "latest", "target", "template", "pvs"}: `current` is
+    the highest packaged stable PV (a coexisting masked _rc is not the
+    baseline); `target` is the release to package, or None when up to date:
       * the newest stable release, if newer than `current`;
       * else, with source.prerelease, the newest -rc release if it is newer
-        than `current` and than every packaged _rc ebuild.
+        than every packaged ebuild.
+    `template` is the ebuild a bump starts from (`current`, else the highest
+    _rc) and `pvs` every packaged PV.
     """
     pvs = current_versions(atom)
-    stable = [v for v in pvs if not PRERELEASE_RE.search(v)]
-    rcs = [v for v in pvs if PRERELEASE_RE.search(v)]
-    current = max(stable, key=bundle_pv_key) if stable else None
+    current = highest_current_stable(atom, key=bundle_pv_key)
 
     rels = bundle_releases(source["repo"])
     finals = [r for r in rels if not r["prerelease"]]
@@ -369,18 +369,16 @@ def rodin_bundle_plan(atom: str, source: dict) -> dict:
         target = latest
     elif source.get("prerelease"):
         pres = [r for r in rels if r["prerelease"]]
-        floor = max(bundle_pv_key(v) for v in [current, *rcs])
-        if pres and pres[-1]["key"] > floor:
+        if pres and pres[-1]["key"] > max(map(bundle_pv_key, pvs)):
             target = pres[-1]
-    return {"current": current, "latest": (target or latest)["pv"], "target": target}
+    return {"current": current, "latest": (target or latest)["pv"], "target": target,
+            "template": current or highest_current(atom, key=bundle_pv_key), "pvs": pvs}
 
 
 def latest_version(source: dict) -> str:
     t = source["type"]
     if t == "github":
         return latest_github(source["repo"])
-    if t == "rodin_bundle":
-        return [r for r in bundle_releases(source["repo"]) if not r["prerelease"]][-1]["pv"]
     if t == "atelierb":
         return latest_atelierb(source["url"])
     if t == "apache_index":
@@ -440,15 +438,31 @@ def _dist_line(name: str, chunks) -> str:
     return f"DIST {name} {size} BLAKE2B {b2.hexdigest()} SHA512 {sha.hexdigest()}"
 
 
-def manifest_line(dest: str, url: str, timeout: int = 120) -> str:
+def manifest_line(dest: str, url: str, sha256: str | None = None,
+                  timeout: int = 120) -> str:
     """Stream `url` and return its thin-Manifest DIST line.
+
+    With `sha256` (the digest GitHub publishes for a release asset), the
+    download is also checked against it, so a truncated one never lands in a
+    Manifest.
 
     No auth header: release-asset downloads redirect to a CDN that rejects a
     forwarded Authorization.
     """
+    h = hashlib.sha256() if sha256 else None
+
+    def chunks(resp):
+        for chunk in iter(lambda: resp.read(1 << 20), b""):
+            if h:
+                h.update(chunk)
+            yield chunk
+
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return _dist_line(dest, iter(lambda: resp.read(1 << 20), b""))
+        line = _dist_line(dest, chunks(resp))
+    if h and h.hexdigest() != sha256:
+        raise ValueError(f"{url}: sha256 {h.hexdigest()} != published {sha256}")
+    return line
 
 
 def manifest_line_file(path: Path) -> str:
@@ -459,6 +473,22 @@ def manifest_line_file(path: Path) -> str:
     """
     with open(path, "rb") as fh:
         return _dist_line(path.name, iter(lambda: fh.read(1 << 20), b""))
+
+
+def read_manifest(pdir: Path) -> dict[str, str]:
+    """A package's thin-Manifest DIST lines, keyed by distfile name."""
+    manifest = pdir / "Manifest"
+    if not manifest.exists():
+        return {}
+    return {line.split()[1]: line for line in manifest.read_text().splitlines()
+            if line.startswith("DIST ")}
+
+
+def write_manifest(pdir: Path, lines: dict[str, str]) -> None:
+    """Write a thin Manifest from DIST `lines`, sorted by filename like Portage."""
+    manifest = pdir / "Manifest"
+    manifest.write_text("".join(f"{lines[k]}\n" for k in sorted(lines)))
+    print(f"  wrote {manifest.relative_to(REPO_ROOT)} ({len(lines)} DIST entries)")
 
 
 def manifest_line_prob2_deb(dest: str, url: str, pv: str) -> str:
@@ -498,12 +528,11 @@ def cmd_check() -> int:
                     plan = rodin_bundle_plan(atom, pkg["source"])
                     entry.update(current=plan["current"], latest=plan["latest"],
                                  outdated=plan["target"] is not None)
-                    report.append(entry)
-                    continue
-                latest = latest_version(pkg["source"])
-                entry["latest"] = latest
-                entry["outdated"] = bool(latest and current
-                                         and version_newer(latest, current))
+                else:
+                    latest = latest_version(pkg["source"])
+                    entry["latest"] = latest
+                    entry["outdated"] = bool(latest and current
+                                             and version_newer(latest, current))
             except Exception as exc:  # detection is best-effort; never fail the run
                 entry["error"] = f"{type(exc).__name__}: {exc}"
         report.append(entry)
@@ -545,14 +574,8 @@ def cmd_bump(atom: str) -> int:
     print(f"{atom}: {current} -> {latest}")
 
     # Regenerate the thin Manifest: keep existing DIST lines (other versions),
-    # add/replace the new version's distfiles. Sorted by filename, like Portage.
-    lines: dict[str, str] = {}
-    manifest = pdir / "Manifest"
-    if manifest.exists():
-        for line in manifest.read_text().splitlines():
-            if line.startswith("DIST "):
-                lines[line.split()[1]] = line
-
+    # add/replace the new version's distfiles.
+    lines = read_manifest(pdir)
     for url, dest in distfiles:
         print(f"  fetching {url}")
         if atom == "sci-mathematics/prob2-ui":
@@ -563,8 +586,7 @@ def cmd_bump(atom: str) -> int:
     # A missing or changed distfile must not leave a partial new ebuild.
     new_ebuild.write_text(text)
     print(f"  created {new_ebuild.relative_to(REPO_ROOT)}")
-    manifest.write_text("".join(f"{lines[k]}\n" for k in sorted(lines)))
-    print(f"  wrote {manifest.relative_to(REPO_ROOT)} ({len(lines)} DIST entries)")
+    write_manifest(pdir, lines)
     emit_outputs(bumped="true", pn=pn, old=current, new=latest)
     return 0
 
@@ -574,23 +596,6 @@ RC_MASK_HEADER = (
     "# Denis Efremov <efremov@linux.com> ({date})\n"
     "# Rodin Bundle release candidates (GitHub prereleases), masked for\n"
     "# testing only. Unmask in /etc/portage/package.unmask to try them out.")
-
-
-def manifest_line_verified(dest: str, url: str, sha256: str | None,
-                           timeout: int = 180) -> str:
-    """manifest_line(), also checking the download against the SHA-256 GitHub
-    publishes for the asset, so a truncated download never lands in a Manifest."""
-    h = hashlib.sha256()
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        def chunks():
-            for chunk in iter(lambda: resp.read(1 << 20), b""):
-                h.update(chunk)
-                yield chunk
-        line = _dist_line(dest, chunks())
-    if sha256 and h.hexdigest() != sha256:
-        raise ValueError(f"{url}: sha256 {h.hexdigest()} != published {sha256}")
-    return line
 
 
 def update_rc_mask(text: str, atom: str, add: str | None, remove: list[str]) -> str:
@@ -642,37 +647,24 @@ def cmd_bump_rodin_bundle(atom: str, source: dict) -> int:
         return 0
 
     pdir = package_dir(atom)
-    pvs = current_versions(atom)
-    if not pvs:
+    template, pvs = plan["template"], plan["pvs"]
+    if template is None:
         raise ValueError(f"{atom}: no ebuild to start from")
-    stable = [v for v in pvs if not PRERELEASE_RE.search(v)]
-    template = max(stable or pvs, key=bundle_pv_key)
     text = (pdir / f"{pn}-{template}.ebuild").read_text()
-    if len(MY_BUILD_RE.findall(text)) != 1:
+    new_text, n = MY_BUILD_RE.subn(f'MY_BUILD="{rel["build"]}"', text)
+    if n != 1:
         raise ValueError(f"{pn}-{template}.ebuild: expected exactly one MY_BUILD= line")
-    new_text = MY_BUILD_RE.sub(f'MY_BUILD="{rel["build"]}"', text)
-    # The ebuild derives the asset name from PV + MY_BUILD; make sure that is
-    # the asset we are about to hash.
-    if bundle_distfile(pn, rel["pv"], new_text) != rel["distfile"]:
-        raise ValueError(f"{rel['tag']}: asset {rel['distfile']} does not match "
-                         f"{pn}-{rel['pv']}.ebuild's SRC_URI")
 
-    if rel["prerelease"]:
-        drop = [v for v in pvs if PRERELEASE_RE.search(v) and bundle_pv_key(v) < rel["key"]]
-    else:
-        drop = [v for v in pvs if bundle_pv_key(v) < rel["key"]]
-    drop.sort(key=bundle_pv_key)
+    # A stable release supersedes every older ebuild, a prerelease only older _rc ones.
+    drop = sorted((v for v in pvs if bundle_pv_key(v) < rel["key"]
+                   and (not rel["prerelease"] or PRERELEASE_RE.search(v))),
+                  key=bundle_pv_key)
     keep = [v for v in pvs if v not in drop]
 
-    print(f"{atom}: {plan['current']} -> {rel['pv']} ({rel['tag']})")
+    print(f"{atom}: {template} -> {rel['pv']} ({rel['tag']})")
 
     # Thin Manifest: the kept ebuilds' DIST lines plus the new distfile.
-    manifest = pdir / "Manifest"
-    old_lines = {}
-    if manifest.exists():
-        for line in manifest.read_text().splitlines():
-            if line.startswith("DIST "):
-                old_lines[line.split()[1]] = line
+    old_lines = read_manifest(pdir)
     lines = {}
     for v in keep:
         name = bundle_distfile(pn, v, (pdir / f"{pn}-{v}.ebuild").read_text())
@@ -680,7 +672,7 @@ def cmd_bump_rodin_bundle(atom: str, source: dict) -> int:
             raise ValueError(f"Manifest has no DIST entry for {name}")
         lines[name] = old_lines[name]
     print(f"  fetching {rel['url']}")
-    lines[rel["distfile"]] = manifest_line_verified(rel["distfile"], rel["url"], rel["sha256"])
+    lines[rel["distfile"]] = manifest_line(rel["distfile"], rel["url"], sha256=rel["sha256"])
 
     # Everything is fetched and validated: only now touch the tree.
     new_ebuild = pdir / f"{pn}-{rel['pv']}.ebuild"
@@ -689,8 +681,7 @@ def cmd_bump_rodin_bundle(atom: str, source: dict) -> int:
     for v in drop:
         (pdir / f"{pn}-{v}.ebuild").unlink()
         print(f"  dropped {pn}-{v}.ebuild")
-    manifest.write_text("".join(f"{lines[k]}\n" for k in sorted(lines)))
-    print(f"  wrote {manifest.relative_to(REPO_ROOT)} ({len(lines)} DIST entries)")
+    write_manifest(pdir, lines)
 
     mask = REPO_ROOT / "profiles" / "package.mask"
     removed_rcs = [v for v in drop if PRERELEASE_RE.search(v)]
@@ -702,7 +693,7 @@ def cmd_bump_rodin_bundle(atom: str, source: dict) -> int:
             mask.write_text(new_mask)
             print(f"  updated {mask.relative_to(REPO_ROOT)}")
 
-    emit_outputs(bumped="true", pn=pn, old=plan["current"] or template, new=rel["pv"],
+    emit_outputs(bumped="true", pn=pn, old=template, new=rel["pv"],
                  dropped=", ".join(drop))
     return 0
 
@@ -885,9 +876,7 @@ def cmd_bump_cargo(atom: str) -> int:
     for f in cratesdir.iterdir():
         if f.is_file():
             lines[f.name] = manifest_line_file(f)
-    manifest = pdir / "Manifest"
-    manifest.write_text("".join(f"{lines[k]}\n" for k in sorted(lines)))
-    print(f"  wrote {manifest.relative_to(REPO_ROOT)} ({len(lines)} DIST entries)")
+    write_manifest(pdir, lines)
 
     skips = SKIP_TESTS_RE.search(new_text)
     emit_outputs(bumped="true", pn=pn, old=current, new=latest,

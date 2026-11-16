@@ -23,6 +23,6 @@ jobs:
       - uses: pkgcore/pkgcheck-action@v1
         with:
           # --net checks live SRC_URI/Homepage reachability (this overlay pulls
-          # prebuilt binaries from SourceForge/GitHub release assets, whose URLs
-          # rot). Drop --net if network checks turn flaky in CI.
+          # prebuilt binaries from GitHub release assets and upstream download
+          # servers, whose URLs rot). Drop --net if network checks turn flaky in CI.
           args: --net
