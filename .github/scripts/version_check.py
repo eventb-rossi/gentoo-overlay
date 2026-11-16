@@ -6,7 +6,10 @@ Two responsibilities, mirroring the two halves of homebrew-tap's release tracker
   * "bump" packages have a single distfile and a clean ${PV}-templated SRC_URI,
     so a version bump is mechanical: copy the ebuild to the new version and
     regenerate the thin Manifest by downloading the distfile(s) and hashing them.
-    These are turned into pull requests.
+    These are turned into pull requests. sci-mathematics/rodin (Rodin-Bundle) is
+    a bump package with a dedicated path, cmd_bump_rodin_bundle: its asset name
+    embeds an opaque build qualifier (MY_BUILD), and GitHub prereleases land as
+    masked _rc ebuilds.
 
   * "cargo" packages are cargo-eclass ebuilds: a bump isn't a verbatim copy
     because the CRATES= and LICENSE= blocks are generated from Cargo.lock and the
@@ -35,6 +38,7 @@ Subcommands:
 
 from __future__ import annotations
 
+import datetime
 import hashlib
 import json
 import os
@@ -59,9 +63,11 @@ REPO_ROOT = Path(os.environ.get("OVERLAY_ROOT") or Path(__file__).resolve().pare
 #
 # source.type:
 #   github       -> latest non-prerelease GitHub release tag (repo = owner/name)
-#   sourceforge  -> newest version directory under a SourceForge files path
 #   atelierb     -> scrape the Atelier B download page for the free version
 #   apache_index -> newest X.Y.Z subdirectory in an Apache/nginx autoindex
+#   rodin_bundle -> eventb-rossi/Rodin-Bundle releases, tags vX.Y.Z-YYMM[.N][-rcN]
+#                   (repo = owner/name; prerelease = also package -rc releases
+#                   as masked _rc ebuilds). Bumped by cmd_bump_rodin_bundle.
 PACKAGES = [
     {"atom": "sci-mathematics/eventb-checker", "mode": "bump",
      "source": {"type": "github", "repo": "eventb-rossi/eventb-checker"}},
@@ -80,6 +86,11 @@ PACKAGES = [
     {"atom": "sci-mathematics/prob-bin", "mode": "bump",
      "source": {"type": "apache_index",
                 "url": "https://stups.hhu-hosting.de/downloads/prob/tcltk/releases/"}},
+    # The bump rewrites MY_BUILD from the release asset, keeps one stable
+    # ebuild, and adds prereleases as masked _rc ebuilds (cmd_bump_rodin_bundle).
+    {"atom": "sci-mathematics/rodin", "mode": "bump",
+     "source": {"type": "rodin_bundle", "repo": "eventb-rossi/Rodin-Bundle",
+                "prerelease": True}},
 
     {"atom": "sci-mathematics/tlc4b", "mode": "track",
      "source": {"type": "github", "repo": "hhu-stups/tlc4b"}},
@@ -92,9 +103,6 @@ PACKAGES = [
     {"atom": "sci-mathematics/rossi", "mode": "cargo",
      "source": {"type": "github", "repo": "eventb-rossi/rossi",
                 "cargo_member": "crates/rossi"}},
-    {"atom": "sci-mathematics/rodin", "mode": "track",
-     "source": {"type": "sourceforge", "project": "rodin-b-sharp",
-                "path": "/Core_Rodin_Platform"}},
     {"atom": "sci-mathematics/atelier-b", "mode": "track",
      "source": {"type": "atelierb",
                 "url": "https://www.atelierb.eu/en/atelier-b-support-maintenance/download-atelier-b/"}},
@@ -217,20 +225,6 @@ def latest_github(repo: str) -> str:
     return clean_pv(max(names, key=version_tuple))
 
 
-def latest_sourceforge(project: str, path: str) -> str:
-    """Newest version directory directly under a SourceForge files path.
-
-    Matches `<path>/<X.Y.Z>/` in the files RSS; a trailing `/` is required, so
-    decorated dirs like `3.10-RC2/` (release candidates) are skipped.
-    """
-    rss = http_get(f"https://sourceforge.net/projects/{project}/rss?path={path}").decode("utf-8", "replace")
-    pat = re.escape(path.rstrip("/")) + r"/(\d+(?:\.\d+)*)/"
-    versions = re.findall(pat, rss)
-    if not versions:
-        raise ValueError(f"no versions matched under {path}")
-    return max(versions, key=version_tuple)
-
-
 def latest_atelierb(url: str) -> str:
     page = http_get(url).decode("utf-8", "replace")
     versions = re.findall(r"atelierb-free-(\d+(?:\.\d+)+)-", page)
@@ -253,12 +247,140 @@ def latest_apache_index(url: str) -> str:
     return max(versions, key=version_tuple)
 
 
+# --- Rodin-Bundle -----------------------------------------------------------
+# Tags are v3.10.0-2611, v3.10.0-2609.2 (a second release in one month) and
+# v3.10.0-2611-rc1 (published as a GitHub prerelease). The PV keeps every part,
+# so 3.10.0_p2611_rc1 < 3.10.0_p2611 < 3.10.0_p2611_p1 < 3.10.0_p2612, both
+# in Portage and in bundle_key (version_tuple can't tell _p2611 from _p2612).
+BUNDLE_TAG_RE = re.compile(
+    r"^v(?P<base>\d+(?:\.\d+)*)-(?P<yymm>\d{4})(?:\.(?P<n>\d+))?(?:-rc(?P<rc>\d+))?$")
+BUNDLE_PV_RE = re.compile(
+    r"^(?P<base>\d+(?:\.\d+)*)_p(?P<yymm>\d{4})(?:_p(?P<n>\d+))?(?:_rc(?P<rc>\d+))?(?:-r\d+)?$")
+# The Linux product archive. <build>, the OSGi qualifier (commit date + hash
+# since 2611, a bare hash before), can't be derived from the tag; the ebuild
+# keeps it in MY_BUILD.
+BUNDLE_ASSET_RE = re.compile(
+    r"^(?P<pn>[\w-]+?)-(?P<base>\d+(?:\.\d+)*)\.(?P<build>[0-9A-Za-z][0-9A-Za-z-]*?)"
+    r"-rossi-linux\.gtk\.x86_64\.tar\.gz$")
+MY_BUILD_RE = re.compile(r'^MY_BUILD="[^"]*"$', re.MULTILINE)
+_FINAL = 1 << 30  # rc component of a final release: an -rcN sorts below it
+
+
+def bundle_key(parts: dict) -> tuple:
+    """Ordering key from BUNDLE_TAG_RE / BUNDLE_PV_RE groups."""
+    base = version_tuple(parts["base"])
+    rc = parts.get("rc")
+    return (base + (0,) * (4 - len(base)), int(parts["yymm"]),
+            int(parts.get("n") or 0), int(rc) if rc else _FINAL)
+
+
+def bundle_pv_key(pv: str) -> tuple:
+    """Ordering key of a packaged PV.
+
+    A PV without the _pYYMM part (vanilla Rodin, e.g. 3.10.0) sorts below every
+    bundle release of the same base, so the bundle supersedes it.
+    """
+    m = BUNDLE_PV_RE.match(pv)
+    if m:
+        return bundle_key(m.groupdict())
+    base = version_tuple(pv)
+    return (base + (0,) * (4 - len(base)), -1, 0, _FINAL)
+
+
+def bundle_pv(parts: dict) -> str:
+    """Tag groups -> PV: v3.10.0-2609.2-rc1 -> 3.10.0_p2609_p2_rc1."""
+    pv = f"{parts['base']}_p{parts['yymm']}"
+    if parts.get("n"):
+        pv += f"_p{parts['n']}"
+    if parts.get("rc"):
+        pv += f"_rc{parts['rc']}"
+    return pv
+
+
+def bundle_distfile(pn: str, pv: str, ebuild_text: str) -> str:
+    """The distfile name an existing bundle ebuild fetches (its SRC_URI)."""
+    m = BUNDLE_PV_RE.match(pv)
+    build = re.search(r'^MY_BUILD="([^"]*)"$', ebuild_text, re.MULTILINE)
+    if not (m and build):
+        raise ValueError(f"{pn}-{pv}.ebuild: not a Rodin-Bundle ebuild (PV or MY_BUILD)")
+    return f"{pn}-{m['base']}.{build.group(1)}-rossi-linux.gtk.x86_64.tar.gz"
+
+
+def bundle_releases(repo: str) -> list[dict]:
+    """Complete, non-draft Rodin-Bundle releases, oldest first.
+
+    A release counts only once both its Linux archive and SHA256SUMS are
+    attached (release.yml uploads SHA256SUMS last), so one still being published
+    is picked up by a later run instead of half-packaged. A prerelease must be an
+    -rcN tag and vice versa (release.yml marks exactly those); anything else is
+    skipped rather than packaged under a misleading version.
+    """
+    data = json.loads(http_get(f"https://api.github.com/repos/{repo}/releases?per_page=100",
+                               headers=gh_headers()))
+    out = []
+    for rel in data:
+        m = BUNDLE_TAG_RE.match(rel.get("tag_name") or "")
+        if rel.get("draft") or not m:
+            continue
+        parts = m.groupdict()
+        if bool(rel.get("prerelease")) != bool(parts["rc"]):
+            continue
+        assets = rel.get("assets") or []
+        if not any(a.get("name") == "SHA256SUMS" for a in assets):
+            continue
+        linux = [(a, am) for a in assets
+                 if (am := BUNDLE_ASSET_RE.match(a.get("name") or ""))
+                 and am["base"] == parts["base"]]
+        if len(linux) != 1:
+            continue
+        asset, am = linux[0]
+        digest = asset.get("digest") or ""
+        out.append({
+            "pv": bundle_pv(parts), "key": bundle_key(parts), "tag": rel["tag_name"],
+            "prerelease": bool(parts["rc"]), "build": am["build"],
+            "distfile": asset["name"], "url": asset["browser_download_url"],
+            "sha256": digest[len("sha256:"):] if digest.startswith("sha256:") else None,
+        })
+    return sorted(out, key=lambda r: r["key"])
+
+
+def rodin_bundle_plan(atom: str, source: dict) -> dict:
+    """Decide what a bump of `atom` would do.
+
+    Returns {"current", "latest", "target"}: `current` is the highest packaged
+    stable PV (a coexisting masked _rc is not the baseline); `target` is the
+    release to package, or None when up to date:
+      * the newest stable release, if newer than `current`;
+      * else, with source.prerelease, the newest -rc release if it is newer
+        than `current` and than every packaged _rc ebuild.
+    """
+    pvs = current_versions(atom)
+    stable = [v for v in pvs if not PRERELEASE_RE.search(v)]
+    rcs = [v for v in pvs if PRERELEASE_RE.search(v)]
+    current = max(stable, key=bundle_pv_key) if stable else None
+
+    rels = bundle_releases(source["repo"])
+    finals = [r for r in rels if not r["prerelease"]]
+    if not finals:
+        raise ValueError(f"{source['repo']}: no complete stable release")
+    latest = finals[-1]
+    target = None
+    if current is None or latest["key"] > bundle_pv_key(current):
+        target = latest
+    elif source.get("prerelease"):
+        pres = [r for r in rels if r["prerelease"]]
+        floor = max(bundle_pv_key(v) for v in [current, *rcs])
+        if pres and pres[-1]["key"] > floor:
+            target = pres[-1]
+    return {"current": current, "latest": (target or latest)["pv"], "target": target}
+
+
 def latest_version(source: dict) -> str:
     t = source["type"]
     if t == "github":
         return latest_github(source["repo"])
-    if t == "sourceforge":
-        return latest_sourceforge(source["project"], source["path"])
+    if t == "rodin_bundle":
+        return [r for r in bundle_releases(source["repo"]) if not r["prerelease"]][-1]["pv"]
     if t == "atelierb":
         return latest_atelierb(source["url"])
     if t == "apache_index":
@@ -372,6 +494,12 @@ def cmd_check() -> int:
                  "latest": None, "outdated": False, "error": None}
         if mode != "skip":
             try:
+                if pkg["source"]["type"] == "rodin_bundle":
+                    plan = rodin_bundle_plan(atom, pkg["source"])
+                    entry.update(current=plan["current"], latest=plan["latest"],
+                                 outdated=plan["target"] is not None)
+                    report.append(entry)
+                    continue
                 latest = latest_version(pkg["source"])
                 entry["latest"] = latest
                 entry["outdated"] = bool(latest and current
@@ -397,6 +525,8 @@ def cmd_bump(atom: str) -> int:
     if not pkg or pkg["mode"] != "bump":
         print(f"refusing to bump {atom!r}: not a configured bump package", file=sys.stderr)
         return 2
+    if pkg["source"]["type"] == "rodin_bundle":
+        return cmd_bump_rodin_bundle(atom, pkg["source"])
 
     pn = atom.split("/", 1)[1]
     current = highest_current(atom)
@@ -436,6 +566,144 @@ def cmd_bump(atom: str) -> int:
     manifest.write_text("".join(f"{lines[k]}\n" for k in sorted(lines)))
     print(f"  wrote {manifest.relative_to(REPO_ROOT)} ({len(lines)} DIST entries)")
     emit_outputs(bumped="true", pn=pn, old=current, new=latest)
+    return 0
+
+
+# --- Rodin-Bundle bump -------------------------------------------------------
+RC_MASK_HEADER = (
+    "# Denis Efremov <efremov@linux.com> ({date})\n"
+    "# Rodin Bundle release candidates (GitHub prereleases), masked for\n"
+    "# testing only. Unmask in /etc/portage/package.unmask to try them out.")
+
+
+def manifest_line_verified(dest: str, url: str, sha256: str | None,
+                           timeout: int = 180) -> str:
+    """manifest_line(), also checking the download against the SHA-256 GitHub
+    publishes for the asset, so a truncated download never lands in a Manifest."""
+    h = hashlib.sha256()
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        def chunks():
+            for chunk in iter(lambda: resp.read(1 << 20), b""):
+                h.update(chunk)
+                yield chunk
+        line = _dist_line(dest, chunks())
+    if sha256 and h.hexdigest() != sha256:
+        raise ValueError(f"{url}: sha256 {h.hexdigest()} != published {sha256}")
+    return line
+
+
+def update_rc_mask(text: str, atom: str, add: str | None, remove: list[str]) -> str:
+    """Return profiles/package.mask `text` with `atom`'s _rc entries updated.
+
+    Our block is the one whose entries are all `~atom-<pv>_rc*`: drop the
+    removed PVs from it (and the whole block once empty), and append `add`
+    to it, starting a new dated block if there is none. Other blocks are
+    left untouched.
+    """
+    def ours(entry: str) -> bool:
+        return entry.startswith(f"~{atom}-") and bool(PRERELEASE_RE.search(entry))
+
+    gone = {f"~{atom}-{pv}" for pv in remove}
+    blocks, mine = [], None
+    for block in re.split(r"\n[ \t]*\n", text.strip("\n")):
+        lines = block.splitlines()
+        entries = [ln for ln in lines if ln.strip() and not ln.startswith("#")]
+        if entries and all(ours(e) for e in entries):
+            lines = [ln for ln in lines if ln not in gone]
+            if not any(ln.strip() and not ln.startswith("#") for ln in lines):
+                continue  # every masked rc of this block is gone
+            mine = len(blocks)
+        if block.strip():
+            blocks.append(lines)
+    if add:
+        if mine is None:
+            header = RC_MASK_HEADER.format(date=datetime.date.today().isoformat())
+            blocks.append(header.splitlines())
+            mine = len(blocks) - 1
+        blocks[mine].append(f"~{atom}-{add}")
+    return "\n\n".join("\n".join(b) for b in blocks) + ("\n" if blocks else "")
+
+
+def cmd_bump_rodin_bundle(atom: str, source: dict) -> int:
+    """Package the release rodin_bundle_plan() picked.
+
+    The new ebuild is the newest stable one with MY_BUILD swapped for the
+    release's build qualifier. A stable release supersedes every older ebuild,
+    a masked _rc one included (one version per package); a prerelease is added
+    as a masked _rc ebuild next to the stable one and supersedes older _rc ones.
+    """
+    pn = atom.split("/", 1)[1]
+    plan = rodin_bundle_plan(atom, source)
+    rel = plan["target"]
+    if rel is None:
+        print(f"{atom}: up to date ({plan['current']}, upstream {plan['latest']})")
+        emit_outputs(bumped="false")
+        return 0
+
+    pdir = package_dir(atom)
+    pvs = current_versions(atom)
+    if not pvs:
+        raise ValueError(f"{atom}: no ebuild to start from")
+    stable = [v for v in pvs if not PRERELEASE_RE.search(v)]
+    template = max(stable or pvs, key=bundle_pv_key)
+    text = (pdir / f"{pn}-{template}.ebuild").read_text()
+    if len(MY_BUILD_RE.findall(text)) != 1:
+        raise ValueError(f"{pn}-{template}.ebuild: expected exactly one MY_BUILD= line")
+    new_text = MY_BUILD_RE.sub(f'MY_BUILD="{rel["build"]}"', text)
+    # The ebuild derives the asset name from PV + MY_BUILD; make sure that is
+    # the asset we are about to hash.
+    if bundle_distfile(pn, rel["pv"], new_text) != rel["distfile"]:
+        raise ValueError(f"{rel['tag']}: asset {rel['distfile']} does not match "
+                         f"{pn}-{rel['pv']}.ebuild's SRC_URI")
+
+    if rel["prerelease"]:
+        drop = [v for v in pvs if PRERELEASE_RE.search(v) and bundle_pv_key(v) < rel["key"]]
+    else:
+        drop = [v for v in pvs if bundle_pv_key(v) < rel["key"]]
+    drop.sort(key=bundle_pv_key)
+    keep = [v for v in pvs if v not in drop]
+
+    print(f"{atom}: {plan['current']} -> {rel['pv']} ({rel['tag']})")
+
+    # Thin Manifest: the kept ebuilds' DIST lines plus the new distfile.
+    manifest = pdir / "Manifest"
+    old_lines = {}
+    if manifest.exists():
+        for line in manifest.read_text().splitlines():
+            if line.startswith("DIST "):
+                old_lines[line.split()[1]] = line
+    lines = {}
+    for v in keep:
+        name = bundle_distfile(pn, v, (pdir / f"{pn}-{v}.ebuild").read_text())
+        if name not in old_lines:
+            raise ValueError(f"Manifest has no DIST entry for {name}")
+        lines[name] = old_lines[name]
+    print(f"  fetching {rel['url']}")
+    lines[rel["distfile"]] = manifest_line_verified(rel["distfile"], rel["url"], rel["sha256"])
+
+    # Everything is fetched and validated: only now touch the tree.
+    new_ebuild = pdir / f"{pn}-{rel['pv']}.ebuild"
+    new_ebuild.write_text(new_text)
+    print(f"  created {new_ebuild.relative_to(REPO_ROOT)}")
+    for v in drop:
+        (pdir / f"{pn}-{v}.ebuild").unlink()
+        print(f"  dropped {pn}-{v}.ebuild")
+    manifest.write_text("".join(f"{lines[k]}\n" for k in sorted(lines)))
+    print(f"  wrote {manifest.relative_to(REPO_ROOT)} ({len(lines)} DIST entries)")
+
+    mask = REPO_ROOT / "profiles" / "package.mask"
+    removed_rcs = [v for v in drop if PRERELEASE_RE.search(v)]
+    if rel["prerelease"] or removed_rcs:
+        old_mask = mask.read_text() if mask.exists() else ""
+        new_mask = update_rc_mask(old_mask, atom,
+                                  rel["pv"] if rel["prerelease"] else None, removed_rcs)
+        if new_mask != old_mask:
+            mask.write_text(new_mask)
+            print(f"  updated {mask.relative_to(REPO_ROOT)}")
+
+    emit_outputs(bumped="true", pn=pn, old=plan["current"] or template, new=rel["pv"],
+                 dropped=", ".join(drop))
     return 0
 
 
