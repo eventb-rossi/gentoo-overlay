@@ -36,7 +36,7 @@ auto-sync = yes
 | Package | Description |
 |---|---|
 | `sci-mathematics/rossi` | Rust toolchain for Event-B: parser, static checker, CLI, and language server |
-| `sci-mathematics/rodin` | Rodin Platform — IDE for formal modelling and verification with Event-B |
+| `sci-mathematics/rodin` | Rodin Platform — Event-B IDE, as the [Rodin Bundle](https://github.com/eventb-rossi/Rodin-Bundle) with SMT solvers, ProB, PO Cleaner and Rossi bridge |
 | `sci-mathematics/rodin-headless` | Headless toolchain to build, model-check, and prove Rodin Event-B models |
 | `sci-mathematics/atelier-b` | Atelier B Community Edition — IDE for the B method |
 | `sci-mathematics/eventb-checker` | Standalone validator for Event-B models |
@@ -86,13 +86,20 @@ echo "sci-mathematics/ltsmin -sylvan" >> /etc/portage/package.use
 LTSmin is built without LTO because version 3.0.2 contains incompatible
 cross-translation-unit declarations that GCC's link-time optimizer rejects.
 
-### Rodin release candidates
+### Rodin
 
-Pre-release versions of Rodin are masked by default. To test a release
-candidate, unmask it:
+`sci-mathematics/rodin` installs the eventb-rossi
+[Rodin Bundle](https://github.com/eventb-rossi/Rodin-Bundle) and needs a
+Java 21 or newer runtime. Its versions follow the bundle's release tags:
+`v3.10.0-2611` is `3.10.0_p2611`, a second release in the same month
+(`v3.10.0-2609.2`) is `3.10.0_p2609_p2`.
+
+Bundle release candidates (`v3.10.0-2612-rc1`) are packaged as `_rc`
+versions (`3.10.0_p2612_rc1`) masked in `profiles/package.mask`. To test the
+current one, unmask it by the version listed there:
 
 ```sh
-echo "~sci-mathematics/rodin-3.10.0_rc2" >> /etc/portage/package.unmask
+echo "~sci-mathematics/rodin-3.10.0_p2612_rc1" >> /etc/portage/package.unmask
 ```
 
 ### b2program
