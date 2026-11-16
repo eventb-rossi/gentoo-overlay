@@ -5,22 +5,33 @@ EAPI=8
 
 inherit desktop optfeature xdg
 
-# Upstream build id embedded in the tarball name; update on version bumps.
-MY_BUILD="202607010932-881664d81"
-MY_SF_DIR="$(ver_cut 1-2)"
+# Build qualifier (commit date + hash) embedded in the release asset name. It
+# cannot be derived from ${PV}; .github/scripts/version_check.py rewrites it
+# on version bumps.
+MY_BUILD="202611160826-a263a14"
+# PV -> Rodin-Bundle release tag: 3.10.0_p2611 -> 3.10.0-2611,
+# 3.10.0_p2609_p2 -> 3.10.0-2609.2, 3.10.0_p2611_rc1 -> 3.10.0-2611-rc1.
+MY_PV="${PV/_p/-}"
+MY_PV="${MY_PV/_p/.}"
+MY_PV="${MY_PV/_rc/-rc}"
 
 DESCRIPTION="IDE for formal modelling and verification with Event-B"
-HOMEPAGE="https://www.event-b.org/"
-SRC_URI="https://downloads.sourceforge.net/rodin-b-sharp/Core_Rodin_Platform/${MY_SF_DIR}/${PN}-$(ver_cut 1-3).${MY_BUILD}-linux.gtk.x86_64.tar.gz"
+HOMEPAGE="https://github.com/eventb-rossi/Rodin-Bundle"
+SRC_URI="https://github.com/eventb-rossi/Rodin-Bundle/releases/download/v${MY_PV}/${PN}-$(ver_cut 1-3).${MY_BUILD}-rossi-linux.gtk.x86_64.tar.gz"
 S="${WORKDIR}/${PN}"
 
-LICENSE="EPL-1.0 EPL-2.0"
+# EPL: Rodin, Eclipse, ProB, PO Cleaner, Rossi bridge; BSD: CVC3, CVC4,
+# veriT; MIT: Z3 (the bundled SMT solvers).
+LICENSE="BSD EPL-1.0 EPL-2.0 MIT"
 SLOT="0"
 KEYWORDS="-* ~amd64"
 
-# Prebuilt Eclipse RCP product without a bundled JRE.
+# Prebuilt Eclipse RCP product without a bundled JRE. The bundled ProB
+# binaries link against libgmp (cspmf) and libuuid (czmq).
 RDEPEND="
-	>=virtual/jre-17:*
+	dev-libs/gmp
+	sys-apps/util-linux
+	>=virtual/jre-21:*
 	x11-libs/gtk+:3
 "
 
@@ -57,6 +68,26 @@ src_install() {
 	# Drop every native copy but the host ABI.
 	find "${S}"/plugins/com.sun.jna_*/com/sun/jna -mindepth 2 -name 'libjnidispatch.*' \
 		-not -path '*/linux-x86-64/*' -delete || die
+
+	# p2 drops the executable bits of ProB's native tools (probcli, cspmf,
+	# ...). The ProB plug-in restores them at startup, but only in a
+	# user-writable install: under a root-owned /opt it cannot, and the
+	# `chmod a+x` in probcli.sh (run under `set -e`) then aborts ProB for
+	# every user. Set the bits here and make that chmod best-effort.
+	local prob f
+	prob=( "${S}"/plugins/de.prob.core_*/prob/linux64 )
+	[[ -f ${prob[0]}/probcli.sh ]] || die "ProB linux64 tree not found"
+	for f in "${prob[0]}"/* "${prob[0]}"/lib/*; do
+		[[ -f ${f} && ${f##*/} != *.so* ]] || continue
+		# ELF executables and #! scripts; shared objects need no +x.
+		case $(head -c 4 "${f}" | od -An -tx1 | tr -d ' \n') in
+			7f454c46|2321*) chmod 0755 "${f}" || die ;;
+		esac
+	done
+	sed -i -e '/^[[:space:]]*chmod a+x /s|$| 2>/dev/null \|\| :|' \
+		"${prob[0]}"/probcli.sh || die
+	grep -q 'chmod a+x .* || :$' "${prob[0]}"/probcli.sh \
+		|| die "probcli.sh chmod not patched"
 
 	# Eclipse 4.x auto-detects the desktop's dark appearance and applies its
 	# dark CSS theme regardless of the product's light-mode intent, yielding a

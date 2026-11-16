@@ -6,14 +6,18 @@
 		<name>Denis Efremov</name>
 	</maintainer>
 	<upstream>
-		<doc lang="en">https://wiki.event-b.org/</doc>
-		<bugs-to>https://sourceforge.net/p/rodin-b-sharp/bugs/</bugs-to>
-		<remote-id type="sourceforge">rodin-b-sharp</remote-id>
+		<doc lang="en">https://wiki.event-b.org/index.php/Main_Page</doc>
+		<bugs-to>https://github.com/eventb-rossi/Rodin-Bundle/issues</bugs-to>
+		<remote-id type="github">eventb-rossi/Rodin-Bundle</remote-id>
 	</upstream>
 	<longdescription lang="en">
 		The Rodin Platform is an Eclipse-based IDE for Event-B that
 		provides effective support for refinement and mathematical
 		proof. Event-B is a formal method for system-level modelling
-		and analysis.
+		and analysis. This package installs the eventb-rossi Rodin
+		Bundle: the Rodin platform plus the SMT solvers (CVC3, CVC4,
+		veriT, Z3), parallel proving tactics, the ProB animator and
+		model checker, the Proof Obligation Cleaner and the Rossi
+		language-server bridge.
 	</longdescription>
 </pkgmetadata>
