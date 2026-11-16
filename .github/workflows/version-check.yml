@@ -2,7 +2,9 @@ name: version-check
 
 # Daily upstream version monitor. Mirrors homebrew-tap's release tracker:
 #   * "bump" packages (clean single-distfile ${PV} ebuilds) -> open a PR with
-#     the new ebuild + regenerated Manifest.
+#     the new ebuild + regenerated Manifest. sci-mathematics/rodin (Rodin-Bundle)
+#     also gets MY_BUILD rewritten, drops the ebuilds it supersedes, and lands
+#     prereleases as package.mask-ed _rc ebuilds.
 #   * "cargo" packages (cargo-eclass ebuilds) -> regenerate CRATES/LICENSE with
 #     pycargoebuild, rebuild the Manifest, build+test, then open a PR. On any
 #     failure, fall back to a tracking issue.
@@ -87,8 +89,10 @@ jobs:
           branch: version-bump/${{ steps.bump.outputs.pn }}-${{ steps.bump.outputs.new }}
           delete-branch: true
           title: '${{ matrix.atom }}: ${{ steps.bump.outputs.old }} → ${{ steps.bump.outputs.new }}'
+          # `dropped` is set only by bumps that remove superseded ebuilds
+          # themselves (sci-mathematics/rodin).
           commit-message: |
-            ${{ matrix.atom }}: add ${{ steps.bump.outputs.new }}
+            ${{ matrix.atom }}: add ${{ steps.bump.outputs.new }}${{ steps.bump.outputs.dropped && format(', drop {0}', steps.bump.outputs.dropped) || '' }}
 
             Automated version bump by the version-check workflow.
 
@@ -105,6 +109,10 @@ jobs:
             The new ebuild is copied verbatim from the previous version (the
             version is taken from the filename) and the thin `Manifest` is
             regenerated from the freshly downloaded distfile(s).
+            `sci-mathematics/rodin` additionally gets `MY_BUILD` from the
+            Rodin-Bundle release asset, drops the ebuilds it supersedes (see
+            the commit message), and adds a prerelease as a `_rc` ebuild
+            masked in `profiles/package.mask`.
 
             Review checklist:
             - [ ] Build/install still works (`SRC_URI`, deps, install phases unchanged)
